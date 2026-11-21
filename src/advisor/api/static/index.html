@@ -913,7 +913,7 @@
         <div class="meta" style="margin-top:12px"><strong>Presupuesto de pérdida diaria</strong> · queda ${money(budget, currency)}</div>
         <div class="progress ${usedCls}"><span style="width:${(used * 100).toFixed(0)}%"></span></div>
         <div class="meta" style="margin-top:10px"><strong>Sectores</strong> · ${esc(sectors)}</div>
-        <div class="meta">Stops, trailing, partial TP y time-stop activos. Kill-switch al −${pct(perf.max_daily_loss_pct || 0.02)} diario.</div>
+        <div class="meta">Stops, trailing, partial TP y time-stop activos. Kill-switch al −${pct(perf.max_daily_loss_pct || 0.02)} diario: pausa compras y vende posiciones en pérdida.</div>
       `;
     }
 

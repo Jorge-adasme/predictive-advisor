@@ -174,6 +174,54 @@ class Autopilot:
 
         return actions
 
+    def _position_mark(self, pos: dict, price_map: dict[str, float], ticker: str) -> float:
+        px = price_map.get(ticker)
+        if px is None:
+            px = float(pos.get("last_price") or pos.get("current_price") or pos.get("entry_price") or 0)
+        return float(px or 0)
+
+    def _unrealized_pnl(self, pos: dict, mark: float) -> float:
+        if pos.get("unrealized_pl") is not None:
+            try:
+                return float(pos["unrealized_pl"])
+            except Exception:
+                pass
+        entry = float(pos.get("entry_price") or pos.get("avg_entry_price") or 0)
+        qty = float(pos.get("qty") or 0)
+        return (mark - entry) * qty
+
+    def _close_positions_for_kill_switch(
+        self,
+        portfolio: dict,
+        price_map: dict[str, float],
+        *,
+        losers_only: bool,
+    ) -> list[dict]:
+        """Cierra perdedoras (o todo) al disparar pérdida diaria máxima."""
+        actions: list[dict] = []
+        positions = dict(portfolio.get("positions") or {})
+        reason = "kill_switch_loser" if losers_only else "kill_switch_flatten"
+        for ticker, pos in list(positions.items()):
+            mark = self._position_mark(pos, price_map, ticker)
+            if mark <= 0:
+                continue
+            pnl = self._unrealized_pnl(pos, mark)
+            if losers_only and pnl >= 0:
+                continue
+            result = self.broker.sell(ticker, mark, reason=reason, fraction=1.0)
+            actions.append(
+                {
+                    "type": "exit",
+                    "ticker": ticker,
+                    "kill_switch": True,
+                    "unrealized_pnl": round(pnl, 2),
+                    **result,
+                }
+            )
+            if result.get("ok"):
+                self.trails.remove(ticker)
+        return actions
+
     def run_once(self, top_n: int | None = None) -> AutopilotResult:
         top_n = top_n or self.settings.top_n
         actions: list[dict] = []
@@ -201,47 +249,96 @@ class Autopilot:
                 mode=self.mode,
             )
 
-        if portfolio.get("halted"):
-            return AutopilotResult(
-                ts=datetime.now(timezone.utc).isoformat(),
-                actions=[],
-                portfolio=portfolio,
-                market=analysis.get("market"),
-                message=f"Autopilot en pausa: {portfolio.get('halt_reason')}",
-                mode=self.mode,
-            )
+        price_map = {
+            item["prediction"]["ticker"]: float(item["prediction"]["last_price"])
+            for item in analysis.get("ranking", []) + analysis.get("recommendations", [])
+        }
+        # Completa precios con marks del portafolio
+        for t, pos in (portfolio.get("positions") or {}).items():
+            if t not in price_map:
+                px = float(pos.get("last_price") or pos.get("current_price") or 0)
+                if px > 0:
+                    price_map[t] = px
+
+        # Siempre gestiona stops/trailing aunque el bot esté en pausa
+        actions.extend(self._manage_open_risk(portfolio, price_map))
+        portfolio = self.broker.status()
 
         daily_pnl = float(portfolio.get("daily_pnl", 0.0) or 0.0)
         equity = float(portfolio.get("equity", 0.0) or 0.0)
-        if equity > 0 and daily_pnl <= -equity * self.settings.max_daily_loss_pct:
+        hit_daily_loss = (
+            equity > 0 and daily_pnl <= -equity * self.settings.max_daily_loss_pct
+        )
+
+        if hit_daily_loss and not portfolio.get("halted"):
+            # 1) Cierra perdedoras (o flatten)  2) pausa nuevas compras
+            if self.settings.halt_flatten_all:
+                actions.extend(
+                    self._close_positions_for_kill_switch(
+                        portfolio, price_map, losers_only=False
+                    )
+                )
+            elif self.settings.halt_close_losers:
+                actions.extend(
+                    self._close_positions_for_kill_switch(
+                        portfolio, price_map, losers_only=True
+                    )
+                )
             portfolio = self.broker.halt("max_daily_loss")
+            closed_n = sum(1 for a in actions if a.get("kill_switch") and a.get("ok"))
+            try:
+                from advisor.portfolio.audit import AuditLog
+
+                AuditLog(self.settings).record(
+                    "kill_switch",
+                    level="warn",
+                    source=f"autopilot:{self.mode}",
+                    summary=(
+                        f"Pérdida diaria ≤ −{self.settings.max_daily_loss_pct:.0%}. "
+                        f"Pausa compras · cerradas={closed_n}"
+                    ),
+                    payload={
+                        "daily_pnl": daily_pnl,
+                        "equity": equity,
+                        "close_losers": self.settings.halt_close_losers,
+                        "flatten_all": self.settings.halt_flatten_all,
+                        "actions": actions[-closed_n:] if closed_n else [],
+                    },
+                )
+            except Exception:
+                pass
             return AutopilotResult(
                 ts=datetime.now(timezone.utc).isoformat(),
                 actions=actions,
                 portfolio=portfolio,
                 market=analysis.get("market"),
                 message=(
-                    f"Se alcanzó max pérdida diaria "
-                    f"(−{self.settings.max_daily_loss_pct:.0%}). Autopilot detenido."
+                    f"Kill-switch diario (−{self.settings.max_daily_loss_pct:.0%}): "
+                    f"autopilot pausado"
+                    + (
+                        f" y se cerraron {closed_n} posición(es) en pérdida."
+                        if closed_n
+                        else (
+                            " (sin posiciones perdedoras que cerrar)."
+                            if self.settings.halt_close_losers
+                            and not self.settings.halt_flatten_all
+                            else "."
+                        )
+                    )
                 ),
                 mode=self.mode,
             )
 
-        price_map = {
-            item["prediction"]["ticker"]: float(item["prediction"]["last_price"])
-            for item in analysis.get("ranking", []) + analysis.get("recommendations", [])
-        }
-
-        actions.extend(self._manage_open_risk(portfolio, price_map))
-
-        portfolio = self.broker.status()
         if portfolio.get("halted"):
             return AutopilotResult(
                 ts=datetime.now(timezone.utc).isoformat(),
                 actions=actions,
                 portfolio=portfolio,
                 market=analysis.get("market"),
-                message="Autopilot detenido por kill-switch.",
+                message=(
+                    f"Autopilot en pausa: {portfolio.get('halt_reason')}. "
+                    "Stops/trailing siguen activos; no hay compras nuevas."
+                ),
                 mode=self.mode,
             )
 

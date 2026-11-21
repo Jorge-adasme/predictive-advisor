@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     risk_per_trade: float = Field(default=0.0075, ge=0.001, le=0.05)
     max_position_pct: float = Field(default=0.12, ge=0.01, le=0.5)
     max_daily_loss_pct: float = Field(default=0.02, ge=0.005, le=0.1)
+    # Al disparar kill-switch diario: vender perdedoras (True) o solo pausar compras
+    halt_close_losers: bool = True
+    # Si True, cierra TODAS las posiciones (incluye ganadoras) al −X% diario
+    halt_flatten_all: bool = False
     min_edge_net_pct: float = Field(default=0.001, ge=0.0, le=0.05)
     # Stop inicial mínimo / ATR
     min_stop_pct: float = Field(default=0.015, ge=0.005, le=0.08)

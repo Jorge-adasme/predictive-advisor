@@ -32,7 +32,14 @@ Cada plan expone `stop_pct` (margen exacto de esa idea).
 ## Kill-switch de portafolio
 
 `ADVISOR_MAX_DAILY_LOSS_PCT=0.02` (default).
-Si el PnL diario ≤ −2% del equity → `halt` y no abre más trades ese día.
+Si el PnL diario ≤ −2% del equity:
+
+1. **Gestiona stops/trailing** de lo abierto (siempre).
+2. **Vende posiciones en pérdida** (`ADVISOR_HALT_CLOSE_LOSERS=true`, default).
+3. Opcional: **cierra todo** si `ADVISOR_HALT_FLATTEN_ALL=true`.
+4. **Pausa compras nuevas** (`halt` / `max_daily_loss`).
+
+Las ganadoras se dejan correr (salvo flatten). En paper, el halt por pérdida diaria se limpia al cambiar el día.
 
 ## Trailing (nuevo)
 
@@ -48,6 +55,8 @@ Aplica en paper, backtest y autopilot (Alpaca vía `trail_stops.json` + cierre m
 ADVISOR_MIN_STOP_PCT=0.015
 ADVISOR_ATR_STOP_MULT=2.0
 ADVISOR_MAX_DAILY_LOSS_PCT=0.02
+ADVISOR_HALT_CLOSE_LOSERS=true
+ADVISOR_HALT_FLATTEN_ALL=false
 ADVISOR_BREAKEVEN_AT_R=1.0
 ADVISOR_TRAIL_AT_R=2.0
 ADVISOR_RISK_PER_TRADE=0.0075
