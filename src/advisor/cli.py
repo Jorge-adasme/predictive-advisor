@@ -84,11 +84,14 @@ def analyze(top: int = typer.Option(8, help="Cantidad por lista (comprar / evita
         console.print(f"\n[{style}]{result['message']}[/{style}]")
 
     buys = result.get("actionable") or []
+    opps = result.get("opportunities") or result.get("recommendations") or []
     avoids = result.get("do_not_invest") or []
-    if buys:
-        _print_rec_table("Para INVERTIR (edge neto)", buys)
-    else:
-        console.print("\n[yellow]Para invertir: ninguna idea con edge suficiente.[/yellow]")
+    if opps:
+        _print_rec_table("Oportunidades (buy + watch)", opps)
+    if buys and buys != opps:
+        _print_rec_table("Listas para ejecutar (BUY)", buys)
+    if not opps:
+        console.print("\n[yellow]Sin oportunidades hoy.[/yellow]")
 
     if avoids:
         _print_rec_table("Para NO invertir (evitar)", avoids)

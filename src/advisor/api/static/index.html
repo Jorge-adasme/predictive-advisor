@@ -287,8 +287,8 @@
   <div class="section-title">Noticias de hoy <span id="newsMeta">—</span></div>
   <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
 
-  <div class="section-title">Para invertir <span id="ideasMeta">—</span></div>
-  <div class="card" id="ideasCard"><div class="empty">Toca “Analizar” para ver oportunidades.</div></div>
+  <div class="section-title">Oportunidades de hoy <span id="ideasMeta">auto</span></div>
+  <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
 
   <div class="section-title">No invertir / evitar <span id="avoidMeta">—</span></div>
   <div class="card" id="avoidCard"><div class="empty">Aquí verás activos a evitar y el motivo.</div></div>
@@ -299,8 +299,7 @@
 
   <div class="actions">
     <button class="secondary" id="refreshBtn" onclick="refreshAll()">Actualizar</button>
-    <button class="secondary" id="analyzeBtn" onclick="runAnalyze()">Analizar</button>
-    <button class="good" id="autoBtn" onclick="runAutopilot()">Auto</button>
+    <button class="good" id="autoBtn" onclick="runAutopilot()">Auto invertir</button>
   </div>
 
   <script>
@@ -462,8 +461,9 @@
 
     function renderIdeas(result) {
       const market = result.market || {};
+      const opps = result.opportunities || result.actionable || [];
       document.getElementById('marketState').textContent = market.regime || '—';
-      document.getElementById('ideasMeta').textContent = `${(result.actionable || []).length} ideas`;
+      document.getElementById('ideasMeta').textContent = `${opps.length} opp`;
       document.getElementById('avoidMeta').textContent = `${(result.do_not_invest || []).length} evitar`;
       renderNewsPayload(result.news, market);
 
@@ -474,11 +474,27 @@
         return;
       }
       ideasCard.innerHTML = `
-        <div class="meta">${result.message || ''}</div>
-        ${renderIdeaList(result.actionable || [], 'Ninguna compra con edge suficiente hoy. Cash es válido.', false)}`;
+        <div class="meta">${result.message || ''} · buy=ejecutable · hold=vigilar con tamaño chico</div>
+        ${renderIdeaList(opps, 'Sin oportunidades ahora.', false)}`;
       avoidCard.innerHTML = `
-        <div class="meta">Activos a evitar o no forzar — tan importante como comprar.</div>
+        <div class="meta">Solo riesgos duros (earnings/news/edge muy negativo).</div>
         ${renderIdeaList(result.do_not_invest || [], 'Sin lista de evitar.', true)}`;
+    }
+
+    async function runAnalyze(silent) {
+      if (!silent) setBanner('Analizando mercado y noticias…', 'info');
+      try {
+        const res = await fetch('/analyze?top_n=15');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error al analizar');
+        renderIdeas(data);
+        const n = (data.opportunities || data.actionable || []).length;
+        setBanner(data.message || 'Análisis listo', n ? 'ok' : 'warn');
+        return data;
+      } catch (err) {
+        setBanner(err.message || String(err), 'warn');
+        return null;
+      }
     }
 
     async function refreshAll() {
@@ -490,30 +506,8 @@
         if (!res.ok) throw new Error(data.detail || 'No se pudo cargar dashboard');
         renderDashboard(data);
         if (data.news) renderNewsPayload(data.news, {});
-        else {
-          // fallback dedicado
-          try {
-            const nres = await fetch('/news');
-            if (nres.ok) renderNewsPayload(await nres.json(), {});
-          } catch {}
-        }
-      } catch (err) {
-        setBanner(err.message || String(err), 'warn');
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
-    async function runAnalyze() {
-      const btn = document.getElementById('analyzeBtn');
-      btn.disabled = true;
-      setBanner('Analizando mercado… esto puede tomar unos segundos.', 'info');
-      try {
-        const res = await fetch('/analyze?top_n=8');
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error al analizar');
-        renderIdeas(data);
-        setBanner(data.message || 'Análisis listo', (data.actionable || []).length ? 'ok' : 'warn');
+        // Siempre analiza solo — sin botón
+        await runAnalyze(true);
       } catch (err) {
         setBanner(err.message || String(err), 'warn');
       } finally {
@@ -526,7 +520,7 @@
       btn.disabled = true;
       setBanner('Ejecutando autopilot… buscando solo operaciones con ventaja neta.', 'info');
       try {
-        const res = await fetch('/autopilot/run?top_n=8&mode=alpaca', { method: 'POST' });
+        const res = await fetch('/autopilot/run?top_n=15&mode=alpaca', { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error en autopilot');
         setBanner(data.message || 'Autopilot listo', (data.actions || []).some(a => a.ok) ? 'ok' : 'warn');
@@ -550,7 +544,9 @@
       await refreshAll();
     });
 
+    // Auto al abrir + cada 5 min (noticias + oportunidades)
     refreshAll();
+    setInterval(() => { refreshAll(); }, 5 * 60 * 1000);
   </script>
 </body>
 </html>

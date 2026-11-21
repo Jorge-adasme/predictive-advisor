@@ -92,7 +92,7 @@ class EarningsCalendar:
         out: dict[str, EarningsInfo] = {}
         fresh: dict[str, Any] = dict(cached_rows)
 
-        skip = {"SPY", "QQQ", "IWM", "DIA", "VTI", "VOO"}
+        skip = {"SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "XLF", "XLK", "XLE"}
         for ticker in tickers_list:
             if ticker in skip:
                 out[ticker] = EarningsInfo(

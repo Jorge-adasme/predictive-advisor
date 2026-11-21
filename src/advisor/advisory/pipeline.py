@@ -126,22 +126,36 @@ class AdvisoryPipeline:
         for idx, rec in enumerate(all_recs[: max(top_n * 2, top_n)], start=1):
             ranking.append(rec.model_copy(update={"rank": idx}))
 
+        # Compras ejecutables (autopilot)
         actionable = [
             r.model_copy()
             for r in all_recs
-            if r.plan.action == Action.BUY
-            and r.plan.edge_net_pct >= self.settings.min_edge_net_pct
-            and r.plan.position_pct > 0
-        ][:top_n]
+            if r.plan.action == Action.BUY and r.plan.position_pct > 0
+        ]
+        actionable = sorted(
+            actionable,
+            key=lambda r: (float(r.plan.edge_net_pct), float(r.prediction.score)),
+            reverse=True,
+        )[:top_n]
         for idx, rec in enumerate(actionable, start=1):
             actionable[idx - 1] = rec.model_copy(update={"rank": idx})
 
-        # Activos a NO invertir: peores scores / news / edge (evitar)
-        avoid_candidates = [
-            r
+        # Oportunidades amplias: BUY + HOLD (cualquier chance razonable)
+        opportunities = [
+            r.model_copy()
             for r in all_recs
-            if r.plan.action in {Action.AVOID, Action.REDUCE, Action.HOLD}
+            if r.plan.action in {Action.BUY, Action.HOLD} and r.plan.position_pct > 0
         ]
+        opportunities = sorted(
+            opportunities,
+            key=lambda r: (float(r.plan.edge_net_pct), float(r.prediction.score)),
+            reverse=True,
+        )[:top_n]
+        for idx, rec in enumerate(opportunities, start=1):
+            opportunities[idx - 1] = rec.model_copy(update={"rank": idx})
+
+        # Solo AVOID duro en "no invertir"
+        avoid_candidates = [r for r in all_recs if r.plan.action == Action.AVOID]
         avoid_candidates = sorted(
             avoid_candidates,
             key=lambda r: (
@@ -155,21 +169,15 @@ class AdvisoryPipeline:
         for idx, rec in enumerate(avoid_candidates[:top_n], start=1):
             do_not_invest.append(rec.model_copy(update={"rank": idx}))
 
-        if actionable and do_not_invest:
-            message = (
-                f"{len(actionable)} para invertir · {len(do_not_invest)} para NO invertir "
-                f"(evitar/reducir)."
-            )
-        elif actionable:
-            message = f"{len(actionable)} idea(s) con edge neto positivo tras costos."
-        else:
-            message = (
-                f"Hoy NO abrir compras ({len(do_not_invest)} en lista de evitar). "
-                f"Cash/defensa es la decisión."
-            )
+        n_buy = len(actionable)
+        n_opp = len(opportunities)
+        n_avoid = len(do_not_invest)
+        message = (
+            f"{n_opp} oportunidades ({n_buy} buy / {n_opp - n_buy} watch) · "
+            f"{n_avoid} a evitar · escaneados {len(predictions)}."
+        )
 
-        # Panel completo: compras primero, luego evitar (para UI/CLI)
-        board: list[Recommendation] = list(actionable)
+        board: list[Recommendation] = list(opportunities)
         for rec in do_not_invest:
             if all(rec.prediction.ticker != x.prediction.ticker for x in board):
                 board.append(rec)
@@ -182,6 +190,7 @@ class AdvisoryPipeline:
             "recommendations": [r.model_dump(mode="json") for r in recommendations],
             "ranking": [r.model_dump(mode="json") for r in ranking],
             "actionable": [r.model_dump(mode="json") for r in actionable],
+            "opportunities": [r.model_dump(mode="json") for r in opportunities],
             "do_not_invest": [r.model_dump(mode="json") for r in do_not_invest],
             "scanned": len(predictions),
             "broker": self.settings.broker,

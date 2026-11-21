@@ -46,10 +46,10 @@ def test_build_trade_plan_filters_weak_edge():
         as_of=datetime.now(timezone.utc),
         horizon_days=5,
         last_price=100,
-        expected_return=0.01,
+        expected_return=-0.08,
         probability_up=0.55,
         confidence=0.4,
-        score=0.2,
+        score=-0.4,
         reasons=["x"],
         risks=[],
     )

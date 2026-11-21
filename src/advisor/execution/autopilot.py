@@ -270,7 +270,7 @@ class Autopilot:
                 continue
             if float(plan["edge_net_pct"]) < self.settings.min_edge_net_pct:
                 continue
-            if float(pred["probability_up"]) < 0.54:
+            if float(pred["probability_up"]) < 0.51:
                 continue
             candidates.append((pred, plan))
 
