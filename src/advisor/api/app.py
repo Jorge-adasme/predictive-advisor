@@ -25,7 +25,14 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/")
 def home() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+    # Evita que iPhone/Safari sirva HTML/JS viejo sin la lista "no invertir"
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 class DecisionRequest(BaseModel):

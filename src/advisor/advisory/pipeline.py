@@ -154,10 +154,10 @@ class AdvisoryPipeline:
         for idx, rec in enumerate(opportunities, start=1):
             opportunities[idx - 1] = rec.model_copy(update={"rank": idx})
 
-        # Solo AVOID duro en "no invertir"
-        avoid_candidates = [r for r in all_recs if r.plan.action == Action.AVOID]
-        avoid_candidates = sorted(
-            avoid_candidates,
+        # "No invertir": AVOID primero; si faltan, completa con peores HOLD
+        avoid_hard = [r for r in all_recs if r.plan.action == Action.AVOID]
+        avoid_hard = sorted(
+            avoid_hard,
             key=lambda r: (
                 float(r.prediction.score),
                 float(r.prediction.expected_return),
@@ -165,8 +165,31 @@ class AdvisoryPipeline:
                 float(r.plan.edge_net_pct),
             ),
         )
+        opp_tickers = {r.prediction.ticker for r in opportunities}
+        weak_holds = [
+            r
+            for r in all_recs
+            if r.plan.action == Action.HOLD and r.prediction.ticker not in opp_tickers
+        ]
+        weak_holds = sorted(
+            weak_holds,
+            key=lambda r: (float(r.prediction.score), float(r.plan.edge_net_pct)),
+        )
+        avoid_pool = list(avoid_hard) + list(weak_holds)
+        # Garantiza al menos top_n visibles en UI
+        if len(avoid_pool) < max(5, top_n // 2):
+            leftovers = [
+                r
+                for r in sorted(
+                    all_recs,
+                    key=lambda r: (float(r.prediction.score), float(r.plan.edge_net_pct)),
+                )
+                if r.prediction.ticker not in opp_tickers
+                and all(r.prediction.ticker != a.prediction.ticker for a in avoid_pool)
+            ]
+            avoid_pool.extend(leftovers)
         do_not_invest = []
-        for idx, rec in enumerate(avoid_candidates[:top_n], start=1):
+        for idx, rec in enumerate(avoid_pool[:top_n], start=1):
             do_not_invest.append(rec.model_copy(update={"rank": idx}))
 
         n_buy = len(actionable)

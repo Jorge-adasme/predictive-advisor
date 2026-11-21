@@ -287,11 +287,11 @@
   <div class="section-title">Noticias de hoy <span id="newsMeta">—</span></div>
   <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
 
+  <div class="section-title">No invertir / evitar <span id="avoidMeta">—</span></div>
+  <div class="card" id="avoidCard"><div class="empty">Cargando lista de evitar…</div></div>
+
   <div class="section-title">Oportunidades de hoy <span id="ideasMeta">auto</span></div>
   <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
-
-  <div class="section-title">No invertir / evitar <span id="avoidMeta">—</span></div>
-  <div class="card" id="avoidCard"><div class="empty">Aquí verás activos a evitar y el motivo.</div></div>
 
   <p class="footer-note">
     Este dashboard busca claridad, no promesas. El autopilot solo opera cuando estima ventaja después de costos.
@@ -430,23 +430,31 @@
         <ul>${headlines.slice(0,8).map(h => `<li><strong style="color:${Number(h.sentiment||0)>=0?'var(--green)':'var(--red)'}">[${Number(h.sentiment||0)>=0?'+':''}${Number(h.sentiment||0).toFixed(2)}]</strong> ${h.title}</li>`).join('')}</ul>`;
     }
 
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
     function renderIdeaList(list, emptyText, showRisks) {
-      if (!list || !list.length) return `<div class="empty">${emptyText}</div>`;
+      if (!list || !list.length) return `<div class="empty">${esc(emptyText)}</div>`;
       return list.map(r => {
-        const p = r.prediction;
-        const plan = r.plan;
+        const p = r.prediction || {};
+        const plan = r.plan || {};
         const nf = Number((p.factors || {}).news_factor || 0);
+        const why = plan.invalidation || '';
         const bullets = showRisks
-          ? (p.risks || []).slice(0, 3).concat([plan.invalidation].filter(Boolean)).slice(0, 3)
+          ? [why].concat(p.risks || []).filter(Boolean).slice(0, 4)
           : (p.reasons || []).slice(0, 3);
+        const action = plan.action || 'avoid';
         return `
           <div class="idea">
             <div class="row" style="justify-content:space-between">
               <div>
-                <div class="ticker">#${r.rank} ${p.ticker}</div>
-                <div class="meta">${p.name} · news ${nf>=0?'+':''}${nf.toFixed(2)}</div>
+                <div class="ticker">#${r.rank || ''} ${esc(p.ticker)}</div>
+                <div class="meta">${esc(p.name || '')} · news ${nf>=0?'+':''}${nf.toFixed(2)}</div>
               </div>
-              <span class="pill ${plan.action}">${plan.action}</span>
+              <span class="pill ${esc(action)}">${esc(action)}</span>
             </div>
             <div class="mini-grid">
               <div class="mini"><div class="k">Prob. alza</div><div class="v">${pct(p.probability_up)}</div></div>
@@ -454,31 +462,53 @@
               <div class="mini"><div class="k">Edge neto</div><div class="v">${pct(plan.edge_net_pct)}</div></div>
               <div class="mini"><div class="k">Tamaño</div><div class="v">${pct(plan.position_pct)}</div></div>
             </div>
-            <ul>${bullets.map(x => `<li>${x}</li>`).join('')}</ul>
+            <ul>${bullets.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
           </div>`;
       }).join('');
+    }
+
+    function pickAvoidList(result) {
+      let avoids = result.do_not_invest || [];
+      if (avoids.length) return avoids;
+      // Fallback: ranking / recommendations con action avoid
+      const pool = [].concat(result.ranking || [], result.recommendations || []);
+      avoids = pool.filter(r => (r.plan || {}).action === 'avoid');
+      // Último recurso: peores del ranking
+      if (!avoids.length && (result.ranking || []).length) {
+        avoids = (result.ranking || []).slice().reverse().slice(0, 10);
+      }
+      return avoids.slice(0, 15);
     }
 
     function renderIdeas(result) {
       const market = result.market || {};
       const opps = result.opportunities || result.actionable || [];
-      document.getElementById('marketState').textContent = market.regime || '—';
-      document.getElementById('ideasMeta').textContent = `${opps.length} opp`;
-      document.getElementById('avoidMeta').textContent = `${(result.do_not_invest || []).length} evitar`;
+      const avoids = pickAvoidList(result);
+      const ms = document.getElementById('marketState');
+      if (ms) ms.textContent = market.regime || '—';
+      const im = document.getElementById('ideasMeta');
+      if (im) im.textContent = `${opps.length} opp`;
+      const am = document.getElementById('avoidMeta');
+      if (am) am.textContent = `${avoids.length} evitar`;
       renderNewsPayload(result.news, market);
 
       const ideasCard = document.getElementById('ideasCard');
       const avoidCard = document.getElementById('avoidCard');
       if (result.error) {
-        ideasCard.innerHTML = `<div class="empty">${result.error}</div>`;
+        if (ideasCard) ideasCard.innerHTML = `<div class="empty">${esc(result.error)}</div>`;
+        if (avoidCard) avoidCard.innerHTML = `<div class="empty">Sin datos de evitar.</div>`;
         return;
       }
-      ideasCard.innerHTML = `
-        <div class="meta">${result.message || ''} · buy=ejecutable · hold=vigilar con tamaño chico</div>
-        ${renderIdeaList(opps, 'Sin oportunidades ahora.', false)}`;
-      avoidCard.innerHTML = `
-        <div class="meta">Solo riesgos duros (earnings/news/edge muy negativo).</div>
-        ${renderIdeaList(result.do_not_invest || [], 'Sin lista de evitar.', true)}`;
+      if (avoidCard) {
+        avoidCard.innerHTML = `
+          <div class="meta">Activos a NO comprar ahora y el motivo.</div>
+          ${renderIdeaList(avoids, 'Sin activos en evitar (raro). Toca Actualizar.', true)}`;
+      }
+      if (ideasCard) {
+        ideasCard.innerHTML = `
+          <div class="meta">${esc(result.message || '')} · buy=ejecutable · hold=vigilar</div>
+          ${renderIdeaList(opps, 'Sin oportunidades ahora.', false)}`;
+      }
     }
 
     async function runAnalyze(silent) {
