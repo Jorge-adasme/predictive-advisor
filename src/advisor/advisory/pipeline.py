@@ -146,23 +146,33 @@ class AdvisoryPipeline:
         for idx, rec in enumerate(actionable, start=1):
             actionable[idx - 1] = rec.model_copy(update={"rank": idx})
 
-        # Oportunidades amplias: BUY + HOLD con edge>=0 en TODO el universo
+        # Oportunidades: TODO el universo rankeado (buy/hold primero, luego mejores no-avoid)
+        # Siempre intenta llenar hasta opportunity_limit para que la UI no se vea corta.
         opportunities = [
             r.model_copy()
             for r in all_recs
-            if r.plan.action in {Action.BUY, Action.HOLD}
-            and r.plan.position_pct > 0
-            and float(r.plan.edge_net_pct) >= 0
+            if r.plan.action in {Action.BUY, Action.HOLD} and r.plan.position_pct > 0
         ]
-        if len(opportunities) < max(8, top_n // 2):
-            # Si el mercado está flojo, igual muestra las menos malas del ranking
-            extra = [
-                r.model_copy()
-                for r in all_recs
-                if r.plan.action in {Action.BUY, Action.HOLD}
-                and r.prediction.ticker not in {x.prediction.ticker for x in opportunities}
-            ]
-            opportunities.extend(extra)
+        seen_opp = {r.prediction.ticker for r in opportunities}
+        if len(opportunities) < opp_limit:
+            for r in all_recs:
+                if r.prediction.ticker in seen_opp:
+                    continue
+                if r.plan.action == Action.AVOID:
+                    continue
+                opportunities.append(r.model_copy())
+                seen_opp.add(r.prediction.ticker)
+                if len(opportunities) >= opp_limit:
+                    break
+        # Último recurso: completar con peores evita convertidos a "watch" informativo
+        if len(opportunities) < opp_limit:
+            for r in all_recs:
+                if r.prediction.ticker in seen_opp:
+                    continue
+                opportunities.append(r.model_copy())
+                seen_opp.add(r.prediction.ticker)
+                if len(opportunities) >= opp_limit:
+                    break
         opportunities = opportunities[:opp_limit]
         for idx, rec in enumerate(opportunities, start=1):
             opportunities[idx - 1] = rec.model_copy(update={"rank": idx})
@@ -205,12 +215,13 @@ class AdvisoryPipeline:
         for idx, rec in enumerate(avoid_pool[:top_n], start=1):
             do_not_invest.append(rec.model_copy(update={"rank": idx}))
 
-        n_buy = len(actionable)
+        n_buy = sum(1 for r in opportunities if r.plan.action == Action.BUY)
+        n_hold = sum(1 for r in opportunities if r.plan.action == Action.HOLD)
         n_opp = len(opportunities)
         n_avoid = len(do_not_invest)
         message = (
-            f"{n_opp} oportunidades ({n_buy} buy / {n_opp - n_buy} watch) · "
-            f"{n_avoid} a evitar · escaneados {len(predictions)}."
+            f"{n_opp} ideas del universo ({n_buy} buy / {n_hold} watch) · "
+            f"{n_avoid} a evitar · escaneados {len(predictions)}/{len(symbols)}."
         )
 
         board: list[Recommendation] = list(opportunities)

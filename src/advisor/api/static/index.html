@@ -234,8 +234,12 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .section-body { overflow: hidden; }
-    .section.collapsed .section-body { display: none; }
+    .section-body { overflow: visible; }
+    .section.collapsed .section-body { display: none; overflow: hidden; }
+    #ideasCard, #avoidCard {
+      max-height: none;
+      overflow: visible;
+    }
     .section:not(.collapsed) .section-body .card {
       border-top-left-radius: 0;
       border-top-right-radius: 0;
@@ -705,6 +709,16 @@
       </div>
 
       <div class="col col-side">
+        <div class="section" data-section="oportunidades">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Oportunidades del universo</span></div>
+            <span class="meta-right" id="ideasMeta">auto</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
+          </div>
+        </div>
+
         <div class="section" data-section="evitar">
           <div class="section-title" role="button" tabindex="0" aria-expanded="true">
             <div class="left"><span class="chev">▾</span><span class="label">No invertir / evitar</span></div>
@@ -712,16 +726,6 @@
           </div>
           <div class="section-body">
             <div class="card" id="avoidCard"><div class="empty">Cargando lista de evitar…</div></div>
-          </div>
-        </div>
-
-        <div class="section" data-section="oportunidades">
-          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-            <div class="left"><span class="chev">▾</span><span class="label">Oportunidades</span></div>
-            <span class="meta-right" id="ideasMeta">auto</span>
-          </div>
-          <div class="section-body">
-            <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
           </div>
         </div>
 
@@ -1186,7 +1190,15 @@
 
     function renderIdeas(result) {
       const market = result.market || {};
-      const opps = result.opportunities || result.actionable || result.ranking || [];
+      // Preferir oportunidades completas; si vienen cortas, completar con ranking
+      let opps = result.opportunities || [];
+      if (opps.length < 20) {
+        const extra = (result.ranking || result.actionable || []).filter((r) => {
+          const tk = (r.prediction || {}).ticker;
+          return tk && !opps.some((o) => (o.prediction || {}).ticker === tk);
+        });
+        opps = opps.concat(extra).slice(0, 60);
+      }
       const avoids = pickAvoidList(result);
       const ms = document.getElementById('marketState');
       if (ms) ms.textContent = market.regime || '—';
@@ -1194,7 +1206,8 @@
       if (im) {
         const scanned = result.scanned || opps.length;
         const uni = result.universe_size || scanned;
-        im.textContent = `${opps.length} opp · ${scanned}/${uni}`;
+        const nBuy = opps.filter((r) => (r.plan || {}).action === 'buy').length;
+        im.textContent = `${opps.length} ideas · ${nBuy} buy · ${scanned}/${uni}`;
       }
       const am = document.getElementById('avoidMeta');
       if (am) am.textContent = `${avoids.length} evitar`;
@@ -1218,8 +1231,8 @@
           ? ` · caché ${result.cache_age_sec || 0}s`
           : ' · escaneo universo completo';
         ideasCard.innerHTML = `
-          <div class="meta">${esc(result.message || '')} · buy=ejecutable · hold=vigilar${cacheNote}</div>
-          ${renderIdeaList(opps, 'Sin oportunidades con edge ahora. El bot sigue escaneando el universo.', false)}`;
+          <div class="meta">${esc(result.message || '')} · mostrando ${opps.length} ideas del universo${cacheNote}</div>
+          ${renderIdeaList(opps, 'Sin oportunidades ahora. Toca Actualizar para rescaneo.', false)}`;
       }
     }
 

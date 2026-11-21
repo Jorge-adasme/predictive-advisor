@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     horizon_days: int = Field(default=10, ge=1, le=60)
     top_n: int = Field(default=30, ge=1, le=80)
     # Cuántas ideas del universo completo mostrar (sigue escaneando TODOS los tickers)
-    opportunity_limit: int = Field(default=50, ge=10, le=120)
+    opportunity_limit: int = Field(default=60, ge=20, le=150)
     # Caché del último analyze para que la UI no quede vacía mientras rescanea
     analyze_cache_ttl_sec: int = Field(default=180, ge=30, le=1800)
 
