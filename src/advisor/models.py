@@ -63,6 +63,8 @@ class TradePlan(BaseModel):
     edge_net_pct: float
     invalidation: str
     horizon_days: int
+    stop_pct: float = 0.0  # margen de pérdida inicial (entry→stop)
+    risk_r: float = 0.0  # $ de riesgo por acción (entry-stop)
 
 
 class Recommendation(BaseModel):

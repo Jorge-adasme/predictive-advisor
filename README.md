@@ -104,9 +104,12 @@ API:
 Reglas de protección:
 
 - no opera sin edge neto tras costos
-- stop / take-profit automáticos
+- stop inicial ≥ **1.5%** (ATR×2; típico 1.5–5%)
+- break-even a **+1R** y trail lock a **+2R**
+- kill-switch diario **−2%** equity
 - máximo de posiciones abiertas
-- kill-switch por pérdida diaria
+
+Detalle: [`docs/RISK_STOPS.md`](docs/RISK_STOPS.md)
 
 > No garantiza ganancias. Live en BTG requiere API/partner oficial.
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from advisor.config import Settings
 from advisor.models import Action, MarketSnapshot, Prediction, Regime, TradePlan
+from advisor.risk.trailing import stop_loss_pct
 
 
 def build_trade_plan(
@@ -55,11 +56,16 @@ def build_trade_plan(
 
     entry = prediction.last_price
 
-    # Stops por ATR del activo (mejor que vol genérica del benchmark)
-    atr_stop = max(atr_pct * 2.0, 0.015)
+    # Stops por ATR del activo (floor = min_stop_pct, tipicamente 1.5%)
+    atr_stop = max(atr_pct * settings.atr_stop_mult, settings.min_stop_pct)
     bench_daily = max(market.benchmark_volatility_20d / (252 ** 0.5), 0.008)
-    stop_distance = max(entry * atr_stop, entry * bench_daily * 2.0, entry * 0.015)
+    stop_distance = max(
+        entry * atr_stop,
+        entry * bench_daily * 2.0,
+        entry * settings.min_stop_pct,
+    )
     stop = entry - stop_distance
+    initial_stop_pct = stop_loss_pct(entry, stop)
 
     # Target: al menos 1.8R o el E[r] neto proyectado
     target_by_edge = entry * max(gross, settings.min_edge_net_pct * 2.5)
@@ -105,24 +111,31 @@ def build_trade_plan(
         risk_reward=round(rr, 2),
         edge_net_pct=round(edge_net, 5),
         invalidation=(
-            f"Cierre bajo {stop:.2f}, pérdida de RS vs benchmark, "
-            f"o régimen risk_off."
+            f"Stop inicial {stop:.2f} (−{initial_stop_pct:.1%}). "
+            f"Break-even a +{settings.breakeven_at_r:.0f}R; "
+            f"trail lock +1R a +{settings.trail_at_r:.0f}R. "
+            f"Kill-switch diario −{settings.max_daily_loss_pct:.0%}."
         ),
         horizon_days=prediction.horizon_days,
+        stop_pct=round(initial_stop_pct, 5),
+        risk_r=round(stop_distance, 4),
     )
 
 
 def _avoid_plan(prediction: Prediction, edge_net: float, reason: str) -> TradePlan:
     entry = prediction.last_price
+    stop = entry * 0.98
     return TradePlan(
         ticker=prediction.ticker,
         action=Action.AVOID,
         entry_price=round(entry, 2),
-        stop_price=round(entry * 0.98, 2),
+        stop_price=round(stop, 2),
         target_price=round(entry * 1.02, 2),
         position_pct=0.0,
         risk_reward=0.0,
         edge_net_pct=round(edge_net, 5),
         invalidation=reason,
         horizon_days=prediction.horizon_days,
+        stop_pct=round(stop_loss_pct(entry, stop), 5),
+        risk_r=round(entry - stop, 4),
     )

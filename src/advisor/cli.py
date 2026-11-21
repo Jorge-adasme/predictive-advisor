@@ -51,6 +51,7 @@ def analyze(top: int = typer.Option(8, help="Cantidad de recomendaciones")) -> N
     table.add_column("Pos %", justify="right")
     table.add_column("Entrada", justify="right")
     table.add_column("Stop", justify="right")
+    table.add_column("Stop%", justify="right")
     table.add_column("Target", justify="right")
 
     for rec in result["recommendations"]:
@@ -66,6 +67,7 @@ def analyze(top: int = typer.Option(8, help="Cantidad de recomendaciones")) -> N
             f"{plan['position_pct']:.1%}",
             f"{plan['entry_price']:.2f}",
             f"{plan['stop_price']:.2f}",
+            f"{float(plan.get('stop_pct') or 0):.1%}",
             f"{plan['target_price']:.2f}",
         )
 
@@ -253,6 +255,7 @@ def backtest(
         "excess_return": result.excess_return,
         "cash_rebalances": result.cash_rebalances,
         "round_trip_cost_pct": result.round_trip_cost_pct,
+        "by_regime": result.by_regime,
     }
     console.print("\n[bold]Walk-forward OOS[/bold]")
     console.print_json(json.dumps(summary, default=str))

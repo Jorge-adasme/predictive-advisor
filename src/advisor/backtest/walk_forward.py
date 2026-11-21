@@ -60,6 +60,7 @@ class BacktestResult:
     trades: list[dict[str, Any]] = field(default_factory=list)
     equity_curve: list[dict[str, Any]] = field(default_factory=list)
     folds: list[dict[str, Any]] = field(default_factory=list)
+    by_regime: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -104,21 +105,42 @@ def _simulate_hold(
     stop: float,
     target: float,
     horizon_days: int,
+    settings: Settings | None = None,
 ) -> tuple[float, str, pd.Timestamp]:
-    """Simula stop/target/horizon sin look-ahead intradía sesgado: stop primero si ambos."""
-    if path.empty:
-        return entry_price, "no_path", pd.Timestamp.utcnow()
+    """Simula stop/target/horizon + trailing BE.
 
+    Conservador: (1) checa stop en low, (2) target en high, (3) ratchet con close.
+    """
+    from advisor.risk.trailing import ratchet_stop
+
+    if path.empty:
+        return entry_price, "no_path", pd.Timestamp.now("UTC")
+
+    initial_stop = float(stop)
+    current_stop = float(stop)
     window = path.iloc[:horizon_days]
+    last_close, last_ts = entry_price, pd.Timestamp.now("UTC")
+    cfg = settings
     for ts, row in window.iterrows():
         low = float(row["Low"])
         high = float(row["High"])
         close = float(row["Close"])
-        # Conservador: si toca stop y target el mismo día, gana el stop
-        if low <= stop:
-            return stop, "stop", pd.Timestamp(ts)
+        if low <= current_stop:
+            reason = "stop" if current_stop <= initial_stop + 1e-9 else "trail_stop"
+            return current_stop, reason, pd.Timestamp(ts)
         if high >= target:
             return target, "target", pd.Timestamp(ts)
+        if cfg is not None:
+            upd = ratchet_stop(
+                entry=entry_price,
+                current_stop=current_stop,
+                mark_price=close,
+                initial_stop=initial_stop,
+                breakeven_at_r=cfg.breakeven_at_r,
+                trail_at_r=cfg.trail_at_r,
+                cost_buffer_pct=cfg.round_trip_cost_pct / 2.0,
+            )
+            current_stop = upd.stop
         last_close, last_ts = close, pd.Timestamp(ts)
     return last_close, "horizon", last_ts
 
@@ -278,6 +300,7 @@ class WalkForwardBacktester:
                         stop=plan.stop_price,
                         target=plan.target_price,
                         horizon_days=horizon,
+                        settings=settings,
                     )
                     # Entrada al close de decisión (ya en plan.entry_price ≈ last close)
                     gross = (exit_px / plan.entry_price) - 1.0
@@ -353,6 +376,20 @@ class WalkForwardBacktester:
         periods_per_year = 252.0 / max(step, 1)
         total_ret, max_dd, sharpe = _metrics_from_returns(period_rets, periods_per_year)
 
+        by_regime: dict[str, Any] = {}
+        for reg in sorted({t.regime for t in trades} | {"risk_on", "risk_off", "neutral"}):
+            subset = [t for t in trades if t.regime == reg]
+            if not subset:
+                by_regime[reg] = {"n_trades": 0, "hit_rate": 0.0, "avg_net": 0.0}
+                continue
+            nets_r = [t.net_return for t in subset]
+            by_regime[reg] = {
+                "n_trades": len(subset),
+                "hit_rate": float(np.mean([1.0 if r > 0 else 0.0 for r in nets_r])),
+                "avg_net": float(np.mean(nets_r)),
+                "expectancy_net": float(np.mean(nets_r)),
+            }
+
         return BacktestResult(
             as_of=datetime.now(timezone.utc).isoformat(),
             lookback_days=lookback_days,
@@ -377,5 +414,6 @@ class WalkForwardBacktester:
             trades=[asdict(t) for t in trades],
             equity_curve=equity_curve,
             folds=folds,
+            by_regime=by_regime,
             notes=notes,
         )

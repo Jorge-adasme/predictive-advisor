@@ -98,6 +98,23 @@ class PaperBroker:
         pos["last_price"] = float(price)
         self._write(state)
 
+    def update_stop(self, ticker: str, stop: float, event: str = "") -> dict[str, Any]:
+        state = self._read()
+        pos = state["positions"].get(ticker)
+        if not pos:
+            return {"ok": False, "error": f"No hay posición en {ticker}"}
+        old = float(pos.get("stop") or 0.0)
+        new = float(stop)
+        if new <= old:
+            return {"ok": True, "stop": old, "changed": False}
+        pos["stop"] = new
+        if not pos.get("initial_stop"):
+            pos["initial_stop"] = old if old > 0 else new
+        if event:
+            pos["trail_event"] = event
+        self._write(state)
+        return {"ok": True, "stop": new, "changed": True, "event": event}
+
     def buy(
         self,
         ticker: str,
@@ -135,9 +152,11 @@ class PaperBroker:
             "entry_price": fill_price,
             "last_price": fill_price,
             "stop": float(stop),
+            "initial_stop": float(stop),
             "target": float(target),
             "opened_at": _now().isoformat(),
             "reason": reason,
+            "trail_event": "",
         }
         order = {
             "ts": _now().isoformat(),

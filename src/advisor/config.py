@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     max_position_pct: float = Field(default=0.12, ge=0.01, le=0.5)
     max_daily_loss_pct: float = Field(default=0.02, ge=0.005, le=0.1)
     min_edge_net_pct: float = Field(default=0.002, ge=0.0, le=0.05)
+    # Stop inicial mínimo / ATR
+    min_stop_pct: float = Field(default=0.015, ge=0.005, le=0.08)
+    atr_stop_mult: float = Field(default=2.0, ge=1.0, le=4.0)
+    # Trailing: break-even a +1R, lock +1R al llegar a +2R
+    breakeven_at_r: float = Field(default=1.0, ge=0.5, le=3.0)
+    trail_at_r: float = Field(default=2.0, ge=1.0, le=5.0)
+    trail_atr_mult: float = Field(default=2.0, ge=1.0, le=4.0)
 
     # Alpaca default: commission-free equities + slippage model
     commission_rate: float = Field(default=0.0, ge=0.0, le=0.05)

@@ -6,7 +6,7 @@ Comando:
 advisor backtest --lookback 756 --train 252 --step 10 --horizon 10 --max-positions 3
 ```
 
-## Resultado (OOS)
+## Resultado (OOS) con trailing BE/+1R
 
 | Métrica | Valor | Lectura |
 |---------|-------|---------|
@@ -20,16 +20,17 @@ advisor backtest --lookback 756 --train 252 --step 10 --horizon 10 --max-positio
 | Max drawdown | −4.4% | daño controlado |
 | Sharpe ann | −0.47 | no sirve aún como alpha de portafolio |
 | Excess vs SPY | −16.4% | buy&hold gana en bull |
+| by_regime | 10 trades en `risk_on` | sin trades risk_off (correcto) |
 
-Exits: 4 horizon / 4 stop / 2 target.
+Nota: en esta ventana el trailing casi no cambia el resultado porque varios trades
+pegan stop **antes** de +1R. El BE ayuda cuando hay recorrido a favor.
 
-## Conclusión experta
+## Márgenes de pérdida (app)
 
-1. **Por trade** hay expectancy neta ligeramente positiva → los filtros no están rotos.
-2. **Por portafolio** todavía no hay alpha: demasiada cash + stops frecuentes en tendencia alcista.
-3. **No subir tamaño live** hasta mejorar Sharpe OOS (>0.5) y excess ≥ 0 en la misma ventana.
-4. Próximos ajustes de mayor ROI:
-   - Trailing stop / break-even tras +1R (menos stops prematuros)
-   - Permitir sleeve trend más agresivo en `risk_on` prolongado
-   - Walk-forward en bear/sideways separado (regime-conditioned metrics)
-   - LightGBM meta-label con purged CV
+Ver [`RISK_STOPS.md`](RISK_STOPS.md): stop trade ≥1.5% (ATR×2), kill-switch −2% diario.
+
+## Conclusión
+
+1. Expectancy por trade > 0 → filtros OK.
+2. Portafolio aún sin alpha vs SPY en bull.
+3. No subir tamaño live hasta Sharpe OOS > 0.5.
