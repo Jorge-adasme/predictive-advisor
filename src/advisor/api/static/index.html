@@ -110,15 +110,72 @@
     .up { color: var(--green); }
     .down { color: var(--red); }
 
+    .section {
+      margin-bottom: 10px;
+    }
     .section-title {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: 8px 2px 10px;
+      gap: 10px;
+      margin: 8px 0 0;
       font-weight: 800;
       font-size: 1.02rem;
+      padding: 12px 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    .section-title span { color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+    .section.collapsed .section-title {
+      margin-bottom: 0;
+    }
+    .section:not(.collapsed) .section-title {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-bottom-color: transparent;
+    }
+    .section-title .left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .section-title .chev {
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      display: grid;
+      place-items: center;
+      font-size: 0.85rem;
+      flex: 0 0 auto;
+      transition: transform 0.18s ease;
+    }
+    .section.collapsed .chev { transform: rotate(-90deg); }
+    .section-title .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .section-title .meta-right {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+      flex: 0 0 auto;
+    }
+    .section-body {
+      overflow: hidden;
+      transition: none;
+    }
+    .section.collapsed .section-body {
+      display: none;
+    }
+    .section:not(.collapsed) .section-body .card {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      margin-top: 0;
+    }
 
     .pos {
       display: flex;
@@ -175,7 +232,7 @@
       backdrop-filter: blur(10px);
       border-top: 1px solid var(--line);
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
       z-index: 20;
     }
@@ -244,54 +301,96 @@
 
   <div id="banner" class="banner info">Preparando resumen de portafolio…</div>
 
-  <div class="hero" id="hero">
-    <div class="label">Valor total</div>
-    <div class="equity" id="equity">—</div>
-    <div class="hero-grid">
-      <div class="hero-pill">
-        <div class="k">Hoy</div>
-        <div class="v" id="dailyPnl">—</div>
+  <div class="section" data-section="resumen">
+    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+      <div class="left"><span class="chev">▾</span><span class="label">Resumen</span></div>
+      <span class="meta-right" id="resumenMeta">cuenta</span>
+    </div>
+    <div class="section-body">
+      <div class="hero" id="hero" style="border-radius:0 0 22px 22px; margin-bottom:0">
+        <div class="label">Valor total</div>
+        <div class="equity" id="equity">—</div>
+        <div class="hero-grid">
+          <div class="hero-pill">
+            <div class="k">Hoy</div>
+            <div class="v" id="dailyPnl">—</div>
+          </div>
+          <div class="hero-pill">
+            <div class="k">Resultado</div>
+            <div class="v" id="totalPnl">—</div>
+          </div>
+          <div class="hero-pill">
+            <div class="k">Disponible</div>
+            <div class="v" id="cash">—</div>
+          </div>
+          <div class="hero-pill">
+            <div class="k">Posiciones</div>
+            <div class="v" id="openPos">—</div>
+          </div>
+        </div>
       </div>
-      <div class="hero-pill">
-        <div class="k">Resultado</div>
-        <div class="v" id="totalPnl">—</div>
-      </div>
-      <div class="hero-pill">
-        <div class="k">Disponible</div>
-        <div class="v" id="cash">—</div>
-      </div>
-      <div class="hero-pill">
-        <div class="k">Posiciones</div>
-        <div class="v" id="openPos">—</div>
+      <div class="grid2" style="margin-top:10px">
+        <div class="card stat">
+          <div class="k">Estado del bot</div>
+          <div class="v" id="botState">—</div>
+        </div>
+        <div class="card stat">
+          <div class="k">Mercado</div>
+          <div class="v" id="marketState">—</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="grid2">
-    <div class="card stat">
-      <div class="k">Estado del bot</div>
-      <div class="v" id="botState">—</div>
+  <div class="section" data-section="posiciones">
+    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+      <div class="left"><span class="chev">▾</span><span class="label">Posiciones abiertas</span></div>
+      <span class="meta-right" id="posCount">0</span>
     </div>
-    <div class="card stat">
-      <div class="k">Mercado</div>
-      <div class="v" id="marketState">—</div>
+    <div class="section-body">
+      <div class="card" id="positionsCard"><div class="empty">Aún no hay posiciones abiertas.</div></div>
     </div>
   </div>
 
-  <div class="section-title">Posiciones abiertas <span id="posCount">0</span></div>
-  <div class="card" id="positionsCard"><div class="empty">Aún no hay posiciones abiertas.</div></div>
+  <div class="section" data-section="movimientos">
+    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+      <div class="left"><span class="chev">▾</span><span class="label">Movimientos</span></div>
+      <span class="meta-right">últimos</span>
+    </div>
+    <div class="section-body">
+      <div class="card" id="movesCard"><div class="empty">Cuando el bot opere, verás aquí cada movimiento.</div></div>
+    </div>
+  </div>
 
-  <div class="section-title">Movimientos <span>últimos</span></div>
-  <div class="card" id="movesCard"><div class="empty">Cuando el bot opere, verás aquí cada movimiento.</div></div>
+  <div class="section" data-section="noticias">
+    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+      <div class="left"><span class="chev">▾</span><span class="label">Noticias de hoy</span></div>
+      <span class="meta-right" id="newsMeta">—</span>
+    </div>
+    <div class="section-body">
+      <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
+    </div>
+  </div>
 
-  <div class="section-title">Noticias de hoy <span id="newsMeta">—</span></div>
-  <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
+  <div class="section" data-section="evitar">
+    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+      <div class="left"><span class="chev">▾</span><span class="label">No invertir / evitar</span></div>
+      <span class="meta-right" id="avoidMeta">—</span>
+    </div>
+    <div class="section-body">
+      <div class="card" id="avoidCard"><div class="empty">Cargando lista de evitar…</div></div>
+    </div>
+  </div>
 
-  <div class="section-title">No invertir / evitar <span id="avoidMeta">—</span></div>
-  <div class="card" id="avoidCard"><div class="empty">Cargando lista de evitar…</div></div>
-
-  <div class="section-title">Oportunidades de hoy <span id="ideasMeta">auto</span></div>
-  <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
+  <div class="section" data-section="oportunidades">
+    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+      <div class="left"><span class="chev">▾</span><span class="label">Oportunidades de hoy</span></div>
+      <span class="meta-right" id="ideasMeta">auto</span>
+    </div>
+    <div class="section-body">
+      <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
+    </div>
+  </div>
 
   <p class="footer-note">
     Este dashboard busca claridad, no promesas. El autopilot solo opera cuando estima ventaja después de costos.
@@ -303,6 +402,66 @@
   </div>
 
   <script>
+    const COLLAPSE_KEY = 'advisor_sections_v1';
+    const DEFAULT_OPEN = {
+      resumen: true,
+      posiciones: true,
+      movimientos: false,
+      noticias: true,
+      evitar: true,
+      oportunidades: true,
+    };
+
+    function loadCollapseState() {
+      try {
+        return { ...DEFAULT_OPEN, ...(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}')) };
+      } catch {
+        return { ...DEFAULT_OPEN };
+      }
+    }
+
+    function saveCollapseState(state) {
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(state)); } catch {}
+    }
+
+    function applyCollapseState() {
+      const state = loadCollapseState();
+      document.querySelectorAll('.section[data-section]').forEach(sec => {
+        const id = sec.getAttribute('data-section');
+        const open = state[id] !== false;
+        sec.classList.toggle('collapsed', !open);
+        const title = sec.querySelector('.section-title');
+        if (title) title.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+
+    function toggleSection(sec) {
+      const id = sec.getAttribute('data-section');
+      const state = loadCollapseState();
+      const willOpen = sec.classList.contains('collapsed');
+      state[id] = willOpen;
+      saveCollapseState(state);
+      sec.classList.toggle('collapsed', !willOpen);
+      const title = sec.querySelector('.section-title');
+      if (title) title.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    }
+
+    function wireCollapse() {
+      document.querySelectorAll('.section[data-section]').forEach(sec => {
+        const title = sec.querySelector('.section-title');
+        if (!title || title.dataset.wired) return;
+        title.dataset.wired = '1';
+        title.addEventListener('click', () => toggleSection(sec));
+        title.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleSection(sec);
+          }
+        });
+      });
+      applyCollapseState();
+    }
+
     const money = (n, currency='USD') => {
       const v = Number(n || 0);
       try {
@@ -573,6 +732,9 @@
       await fetch(endpoint, { method: 'POST' });
       await refreshAll();
     });
+
+    // Secciones colapsables (recuerda estado en el teléfono)
+    wireCollapse();
 
     // Auto al abrir + cada 5 min (noticias + oportunidades)
     refreshAll();
