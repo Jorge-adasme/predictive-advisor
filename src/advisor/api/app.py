@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from advisor.advisory.pipeline import AdvisoryPipeline
@@ -8,11 +12,20 @@ from advisor.config import get_settings
 from advisor.models import Recommendation
 from advisor.portfolio.journal import JournalStore
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
 app = FastAPI(
     title="Predictive Investment Advisor",
     description="Analizador predictivo de inversiones (Chile / BTG-ready)",
     version="0.1.0",
 )
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/")
+def home() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 class DecisionRequest(BaseModel):
