@@ -45,6 +45,9 @@ advisor backtest --lookback 756 --train 252 --step 10
 # Pulso de noticias mundiales (afecta régimen + scores)
 advisor news
 
+# Capa IA: decide buy/hold/avoid sobre el análisis cuantitativo
+advisor ai-decide --top 10
+
 # Calendario earnings + blackout
 advisor earnings
 
@@ -71,9 +74,22 @@ Endpoints:
 
 - `GET /health`
 - `GET /analyze?top_n=8`
+- `GET /ai/decisions?top_n=10`
 - `GET /btg/status`
 - `POST /decisions` `{ "ticker": "CHILE.SN", "decision": "accepted" }`
 - `GET /journal`
+
+## Capa de IA (decidir ≠ ejecutar)
+
+El motor cuantitativo propone. La **IA decide** (`buy` / `hold` / `avoid` + `approve_trade`).
+El autopilot **solo compra** si la IA aprueba (cuando `ADVISOR_AI_GATE_AUTOPILOT=true`).
+
+| Provider | Requisito | Uso |
+|----------|-----------|-----|
+| `local` (default) | ninguno | comité explicable siempre ON |
+| `openai` / `anthropic` | `ADVISOR_AI_API_KEY` | LLM opcional; fallback a local |
+
+Detalle: [`docs/AI_DECISION_LAYER.md`](docs/AI_DECISION_LAYER.md)
 
 ## Qué decide el sistema
 
@@ -135,9 +151,10 @@ meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.m
 - [x] v2.1: partial TP, time-stop, diversificación sectorial
 - [x] Factor de noticias mundiales (RSS + Yahoo) en predicción/régimen
 - [x] v3: sentimiento semántico TF-IDF + NewsAPI opcional + earnings blackout
+- [x] Capa IA de decisión (local committee + OpenAI/Anthropic opcional) con gate de autopilot
 
 - [ ] Conector oficial BTG / Finanzas Abiertas
-- [ ] Semi-auto / live con aprobación
+- [ ] Semi-auto / live con aprobación humana + IA
 - [ ] Modelos ML entrenados (además del scoring factorial)
 
 ## Nota regulatoria (Chile)

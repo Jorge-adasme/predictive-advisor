@@ -74,6 +74,14 @@ class Settings(BaseSettings):
     btg_account_id: str = ""
     btg_live_token: str = ""
 
+    # IA de decisión (encima del motor cuantitativo)
+    ai_enabled: bool = True
+    ai_provider: str = "local"  # local | openai | anthropic
+    ai_api_key: str = ""
+    ai_model: str = ""  # vacío = default del provider
+    ai_base_url: str = "https://api.openai.com/v1"
+    ai_gate_autopilot: bool = True  # si True, autopilot solo compra con approve_trade
+
     @property
     def round_trip_cost_pct(self) -> float:
         """Costo estimado ida y vuelta: comisión(+IVA) por lado + slippage."""

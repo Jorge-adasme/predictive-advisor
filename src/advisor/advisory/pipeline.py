@@ -6,6 +6,7 @@ from advisor.adapters.yahoo import YahooMarketDataAdapter
 from advisor.analysis.regime import detect_regime
 from advisor.config import Settings, get_settings
 from advisor.models import Action, Recommendation
+from advisor.ai.decision_agent import DecisionAgent
 from advisor.events.earnings import EarningsCalendar
 from advisor.news.engine import NewsEngine
 from advisor.prediction.ranking import apply_cross_sectional_ranks
@@ -208,13 +209,76 @@ class AdvisoryPipeline:
             r.model_copy(update={"rank": i}) for i, r in enumerate(board[: top_n * 2], start=1)
         ]
 
+        market_dict = market.model_dump(mode="json")
+        opp_payload = [r.model_dump(mode="json") for r in opportunities]
+        avoid_payload = [r.model_dump(mode="json") for r in do_not_invest]
+        actionable_payload = [r.model_dump(mode="json") for r in actionable]
+
+        # Capa IA: decide buy/hold/avoid y puede vetar autopilot
+        ai_decisions: list[dict] = []
+        ai_meta = {"enabled": False, "provider": "off"}
+        if self.settings.ai_enabled:
+            agent = DecisionAgent(self.settings)
+            decide_pool = opp_payload[: min(10, len(opp_payload))] + avoid_payload[: min(8, len(avoid_payload))]
+            # dedupe tickers
+            seen: set[str] = set()
+            unique_pool = []
+            for it in decide_pool:
+                tk = it["prediction"]["ticker"]
+                if tk in seen:
+                    continue
+                seen.add(tk)
+                unique_pool.append(it)
+            decisions = agent.decide_many(
+                market=market_dict,
+                news=news_dict,
+                items=unique_pool,
+                max_items=12,
+            )
+            ai_decisions = [d.to_dict() for d in decisions]
+            by_tk = {d["ticker"]: d for d in ai_decisions}
+
+            def _attach(rows: list[dict]) -> list[dict]:
+                out = []
+                for row in rows:
+                    tk = row["prediction"]["ticker"]
+                    if tk in by_tk:
+                        row = {**row, "ai": by_tk[tk]}
+                    out.append(row)
+                return out
+
+            opp_payload = _attach(opp_payload)
+            avoid_payload = _attach(avoid_payload)
+            actionable_payload = _attach(actionable_payload)
+            # Autopilot solo ideas que la IA aprueba (si gate activo)
+            if self.settings.ai_gate_autopilot:
+                actionable_payload = [
+                    r
+                    for r in actionable_payload
+                    if (r.get("ai") or {}).get("approve_trade") is True
+                ]
+            ai_meta = {
+                "enabled": True,
+                "provider": agent.provider,
+                "gate_autopilot": self.settings.ai_gate_autopilot,
+                "n_decisions": len(ai_decisions),
+            }
+            message = (
+                f"{message} · IA({ai_meta['provider']}): "
+                f"{sum(1 for d in ai_decisions if d['action']=='buy')} buy / "
+                f"{sum(1 for d in ai_decisions if d['action']=='hold')} hold / "
+                f"{sum(1 for d in ai_decisions if d['action']=='avoid')} avoid."
+            )
+
         return {
-            "market": market.model_dump(mode="json"),
+            "market": market_dict,
             "recommendations": [r.model_dump(mode="json") for r in recommendations],
             "ranking": [r.model_dump(mode="json") for r in ranking],
-            "actionable": [r.model_dump(mode="json") for r in actionable],
-            "opportunities": [r.model_dump(mode="json") for r in opportunities],
-            "do_not_invest": [r.model_dump(mode="json") for r in do_not_invest],
+            "actionable": actionable_payload,
+            "opportunities": opp_payload,
+            "do_not_invest": avoid_payload,
+            "ai_decisions": ai_decisions,
+            "ai": ai_meta,
             "scanned": len(predictions),
             "broker": self.settings.broker,
             "cost_model": {

@@ -116,6 +116,25 @@ def analyze(top: int = typer.Option(8, help="Cantidad por lista (comprar / evita
     else:
         console.print("\n[dim]Lista de evitar vacía.[/dim]")
 
+    ai_meta = result.get("ai") or {}
+    ai_rows = result.get("ai_decisions") or []
+    if ai_meta.get("enabled") and ai_rows:
+        console.print(
+            f"\n[bold]Decisión IA[/bold] provider={ai_meta.get('provider')} "
+            f"gate_autopilot={ai_meta.get('gate_autopilot')}"
+        )
+        for d in ai_rows[:10]:
+            mark = {
+                "buy": "[green]BUY[/green]",
+                "hold": "[yellow]HOLD[/yellow]",
+                "avoid": "[red]AVOID[/red]",
+            }.get(d.get("action"), d.get("action"))
+            appr = "✓ ejecuta" if d.get("approve_trade") else "✗ no ejecuta"
+            console.print(
+                f"  {d.get('ticker')}: {mark} conv={float(d.get('conviction') or 0):.0%} "
+                f"{appr} — {d.get('summary', '')[:90]}"
+            )
+
     console.print(
         f"\nEscaneados: {result['scanned']} | "
         f"Costo round-trip estimado: {result['cost_model']['round_trip_cost_pct']:.2%}"
@@ -279,6 +298,25 @@ def earnings_cmd(refresh: bool = typer.Option(False, help="Ignorar cache")) -> N
         dte = r["days_to_earnings"]
         dte_s = "n/a" if dte is None else f"{dte:+.1f}d"
         console.print(f"  {r['ticker']:<6} {flag}  dte={dte_s}  {r.get('blackout_reason','')}")
+
+
+@app.command("ai-decide")
+def ai_decide(top: int = typer.Option(10, help="Ideas a evaluar con IA")) -> None:
+    """Capa de IA: decide buy/hold/avoid sobre el análisis cuantitativo."""
+    result = AdvisoryPipeline().analyze(top_n=top)
+    if result.get("error"):
+        console.print(f"[red]{result['error']}[/red]")
+        raise typer.Exit(code=1)
+    console.print_json(
+        json.dumps(
+            {
+                "ai": result.get("ai"),
+                "decisions": result.get("ai_decisions"),
+                "message": result.get("message"),
+            },
+            default=str,
+        )
+    )
 
 
 @app.command("news")

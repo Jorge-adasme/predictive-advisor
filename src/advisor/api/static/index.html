@@ -392,8 +392,18 @@
     </div>
   </div>
 
+  <div class="section" data-section="ia">
+    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+      <div class="left"><span class="chev">▾</span><span class="label">Decisión IA</span></div>
+      <span class="meta-right" id="aiMeta">—</span>
+    </div>
+    <div class="section-body">
+      <div class="card" id="aiCard"><div class="empty">La IA revisará el análisis cuantitativo…</div></div>
+    </div>
+  </div>
+
   <p class="footer-note">
-    Este dashboard busca claridad, no promesas. El autopilot solo opera cuando estima ventaja después de costos.
+    El cuant analiza. La IA decide. El autopilot solo compra si la IA aprueba (gate ON). No hay ganancias garantizadas.
   </p>
 
   <div class="actions">
@@ -410,6 +420,7 @@
       noticias: true,
       evitar: true,
       oportunidades: true,
+      ia: true,
     };
 
     function loadCollapseState() {
@@ -624,6 +635,10 @@
           ? [why].concat(p.risks || []).filter(Boolean).slice(0, 4)
           : (p.reasons || []).slice(0, 3);
         const action = plan.action || 'avoid';
+        const ai = r.ai || null;
+        const aiPill = ai
+          ? `<span class="pill ${esc(ai.action || 'hold')}" title="${esc(ai.summary || '')}">IA:${esc(ai.action || '?')}</span>`
+          : '';
         return `
           <div class="idea">
             <div class="row" style="justify-content:space-between">
@@ -631,7 +646,7 @@
                 <div class="ticker">#${r.rank || ''} ${esc(p.ticker)}</div>
                 <div class="meta">${esc(p.name || '')} · news ${nf>=0?'+':''}${nf.toFixed(2)}</div>
               </div>
-              <span class="pill ${esc(action)}">${esc(action)}</span>
+              <div class="row">${aiPill}<span class="pill ${esc(action)}">${esc(action)}</span></div>
             </div>
             <div class="mini-grid">
               <div class="mini"><div class="k">Prob. alza</div><div class="v">${pct(p.probability_up)}</div></div>
@@ -657,6 +672,50 @@
       return avoids.slice(0, 15);
     }
 
+    function renderAiDecisions(result) {
+      const ai = result.ai || {};
+      const rows = result.ai_decisions || [];
+      const meta = document.getElementById('aiMeta');
+      const card = document.getElementById('aiCard');
+      if (!card) return;
+      if (!ai.enabled) {
+        if (meta) meta.textContent = 'off';
+        card.innerHTML = '<div class="empty">Capa IA desactivada (ADVISOR_AI_ENABLED=false).</div>';
+        return;
+      }
+      const nBuy = rows.filter(d => d.action === 'buy').length;
+      const nHold = rows.filter(d => d.action === 'hold').length;
+      const nAvoid = rows.filter(d => d.action === 'avoid').length;
+      if (meta) meta.textContent = `${ai.provider || 'local'} · ${nBuy}buy/${nHold}hold/${nAvoid}avoid`;
+      if (!rows.length) {
+        card.innerHTML = '<div class="empty">Sin decisiones IA todavía.</div>';
+        return;
+      }
+      const gate = ai.gate_autopilot ? 'Autopilot exige approve_trade' : 'Gate OFF (IA solo asesora)';
+      card.innerHTML = `
+        <div class="meta">Cuant → IA → ejecución. Provider <strong>${esc(ai.provider || 'local')}</strong>. ${esc(gate)}.</div>
+        ${rows.map(d => {
+          const action = d.action || 'hold';
+          const appr = d.approve_trade
+            ? '<span class="pill buy">✓ ejecuta</span>'
+            : '<span class="pill avoid">✗ no ejecuta</span>';
+          const rationale = (d.rationale || []).slice(0, 3);
+          const risks = (d.risks || []).slice(0, 2);
+          return `
+            <div class="idea">
+              <div class="row" style="justify-content:space-between">
+                <div>
+                  <div class="ticker">${esc(d.ticker)}</div>
+                  <div class="meta">convicción ${pct(d.conviction)} · ${esc(d.model || '')}</div>
+                </div>
+                <div class="row">${appr}<span class="pill ${esc(action)}">${esc(action)}</span></div>
+              </div>
+              <div class="meta" style="margin-top:8px">${esc(d.summary || '')}</div>
+              <ul>${rationale.map(x => `<li>${esc(x)}</li>`).concat(risks.map(x => `<li style="color:var(--red)">! ${esc(x)}</li>`)).join('')}</ul>
+            </div>`;
+        }).join('')}`;
+    }
+
     function renderIdeas(result) {
       const market = result.market || {};
       const opps = result.opportunities || result.actionable || [];
@@ -668,6 +727,7 @@
       const am = document.getElementById('avoidMeta');
       if (am) am.textContent = `${avoids.length} evitar`;
       renderNewsPayload(result.news, market);
+      renderAiDecisions(result);
 
       const ideasCard = document.getElementById('ideasCard');
       const avoidCard = document.getElementById('avoidCard');

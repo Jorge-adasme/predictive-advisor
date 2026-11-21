@@ -278,6 +278,20 @@ def earnings_calendar(refresh: bool = Query(default=False)) -> dict:
     }
 
 
+@app.get("/ai/decisions")
+def ai_decisions(top_n: int = Query(default=10, ge=1, le=30)) -> dict:
+    """Decisiones de la capa IA sobre el análisis actual."""
+    result = AdvisoryPipeline().analyze(top_n=top_n)
+    if result.get("error"):
+        raise HTTPException(status_code=503, detail=result["error"])
+    return {
+        "ai": result.get("ai"),
+        "decisions": result.get("ai_decisions"),
+        "message": result.get("message"),
+        "market": result.get("market"),
+    }
+
+
 @app.get("/news")
 def news_pulse(refresh: bool = Query(default=False)) -> dict:
     """Noticias mundiales + sentimiento para régimen y scoring."""

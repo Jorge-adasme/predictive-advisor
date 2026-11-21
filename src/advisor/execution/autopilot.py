@@ -272,6 +272,21 @@ class Autopilot:
                 continue
             if float(pred["probability_up"]) < 0.51:
                 continue
+            # Gate IA: si está activo, exige approve_trade
+            if self.settings.ai_enabled and self.settings.ai_gate_autopilot:
+                ai = item.get("ai") or {}
+                if not ai.get("approve_trade"):
+                    actions.append(
+                        {
+                            "type": "ai_veto",
+                            "ok": True,
+                            "ticker": ticker,
+                            "reason": (ai.get("summary") or "IA no aprueba la compra"),
+                            "ai_action": ai.get("action"),
+                            "conviction": ai.get("conviction"),
+                        }
+                    )
+                    continue
             candidates.append((pred, plan))
 
         chosen = select_diversified(
