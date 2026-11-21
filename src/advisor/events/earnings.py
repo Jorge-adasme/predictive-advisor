@@ -92,9 +92,15 @@ class EarningsCalendar:
         out: dict[str, EarningsInfo] = {}
         fresh: dict[str, Any] = dict(cached_rows)
 
-        skip = {"SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "XLF", "XLK", "XLE"}
+        # ETFs / fondos: no tienen earnings de empresa (acelera el escaneo del universo)
+        skip = {
+            "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "IVV", "VXUS", "VNQ",
+            "XLF", "XLK", "XLE", "XLV", "XLI", "XLP", "XLY", "XLU", "XLB", "XLRE", "XLC",
+            "SMH", "SOXX", "ARKK", "GLD", "SLV", "TLT", "IEF", "LQD", "HYG",
+            "EFA", "EEM", "USO", "UNG",
+        }
         for ticker in tickers_list:
-            if ticker in skip:
+            if ticker in skip or ticker.upper().endswith("ETF"):
                 out[ticker] = EarningsInfo(
                     ticker=ticker,
                     next_earnings=None,

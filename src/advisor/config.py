@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     lookback_days: int = Field(default=420, ge=60, le=2000)
     horizon_days: int = Field(default=10, ge=1, le=60)
     top_n: int = Field(default=30, ge=1, le=80)
+    # Cuántas ideas del universo completo mostrar (sigue escaneando TODOS los tickers)
+    opportunity_limit: int = Field(default=50, ge=10, le=120)
+    # Caché del último analyze para que la UI no quede vacía mientras rescanea
+    analyze_cache_ttl_sec: int = Field(default=180, ge=30, le=1800)
 
     data_dir: Path = ROOT_DIR / "data"
     universe_path: Path = ROOT_DIR / "configs" / "universe_alpaca_us.json"

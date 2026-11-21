@@ -1183,12 +1183,16 @@
 
     function renderIdeas(result) {
       const market = result.market || {};
-      const opps = result.opportunities || result.actionable || [];
+      const opps = result.opportunities || result.actionable || result.ranking || [];
       const avoids = pickAvoidList(result);
       const ms = document.getElementById('marketState');
       if (ms) ms.textContent = market.regime || '—';
       const im = document.getElementById('ideasMeta');
-      if (im) im.textContent = `${opps.length} opp`;
+      if (im) {
+        const scanned = result.scanned || opps.length;
+        const uni = result.universe_size || scanned;
+        im.textContent = `${opps.length} opp · ${scanned}/${uni}`;
+      }
       const am = document.getElementById('avoidMeta');
       if (am) am.textContent = `${avoids.length} evitar`;
       renderNewsPayload(result.news, market);
@@ -1207,9 +1211,12 @@
           ${renderIdeaList(avoids, 'Sin activos en evitar (raro). Toca Actualizar.', true)}`;
       }
       if (ideasCard) {
+        const cacheNote = result.cached
+          ? ` · caché ${result.cache_age_sec || 0}s`
+          : ' · escaneo universo completo';
         ideasCard.innerHTML = `
-          <div class="meta">${esc(result.message || '')} · buy=ejecutable · hold=vigilar</div>
-          ${renderIdeaList(opps, 'Sin oportunidades ahora.', false)}`;
+          <div class="meta">${esc(result.message || '')} · buy=ejecutable · hold=vigilar${cacheNote}</div>
+          ${renderIdeaList(opps, 'Sin oportunidades con edge ahora. El bot sigue escaneando el universo.', false)}`;
       }
     }
 
@@ -1364,18 +1371,46 @@
     }
 
     async function runAnalyze(silent) {
-      if (!silent) setBanner('Analizando mercado y noticias…', 'info');
+      const ideasCard = document.getElementById('ideasCard');
+      if (ideasCard && !silent) {
+        ideasCard.innerHTML = '<div class="empty">Escaneando universo Alpaca… puede tardar la primera vez.</div>';
+      }
+      if (!silent) setBanner('Escaneando universo completo (oportunidades + rotación)…', 'info');
       try {
-        const res = await fetch('/analyze?top_n=30');
+        // 1) pinta caché al instante si existe
+        try {
+          const cachedRes = await fetch('/analyze/last');
+          if (cachedRes.ok) {
+            const cached = await cachedRes.json();
+            renderIdeas(cached);
+            const cn = (cached.opportunities || []).length;
+            setBanner(
+              `Mostrando último escaneo (${cn} opp · hace ${cached.cache_age_sec || 0}s). Actualizando…`,
+              'info'
+            );
+          }
+        } catch {}
+
+        // 2) rescanea universo completo
+        const res = await fetch('/analyze?top_n=50&refresh=true');
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error al analizar');
         renderIdeas(data);
         lastAnalyzeAt = Date.now();
         const n = (data.opportunities || data.actionable || []).length;
-        if (!silent) setBanner(data.message || 'Análisis listo', n ? 'ok' : 'warn');
+        const scanned = data.scanned || 0;
+        const uni = data.universe_size || scanned;
+        setBanner(
+          data.message || `Listo: ${n} oportunidades · escaneados ${scanned}/${uni}`,
+          n ? 'ok' : 'warn'
+        );
         return data;
       } catch (err) {
-        if (!silent) setBanner(err.message || String(err), 'warn');
+        const msg = err.message || String(err);
+        setBanner(msg, 'warn');
+        if (ideasCard && !(ideasCard.innerHTML || '').includes('idea')) {
+          ideasCard.innerHTML = `<div class="empty">No se pudieron cargar oportunidades: ${esc(msg)}</div>`;
+        }
         return null;
       }
     }

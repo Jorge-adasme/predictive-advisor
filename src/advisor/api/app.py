@@ -274,11 +274,34 @@ def dashboard(mode: str = Query(default="alpaca")) -> dict:
 
 
 @app.get("/analyze")
-def analyze(top_n: int = Query(default=8, ge=1, le=30)) -> dict:
-    result = AdvisoryPipeline().analyze(top_n=top_n)
+def analyze(
+    top_n: int = Query(default=30, ge=1, le=80),
+    refresh: bool = Query(default=True, description="Si false, usa caché del último escaneo"),
+) -> dict:
+    """Escanea el universo completo y devuelve oportunidades rankeadas."""
+    pipeline = AdvisoryPipeline()
+    if not refresh:
+        cached = pipeline.load_analyze_cache()
+        if cached and not cached.get("error"):
+            return cached
+    result = pipeline.analyze(top_n=top_n)
     if result.get("error"):
+        # Si el rescaneo falla, intenta servir caché para no dejar la UI vacía
+        cached = pipeline.load_analyze_cache()
+        if cached and not cached.get("error"):
+            cached["warning"] = result["error"]
+            return cached
         raise HTTPException(status_code=503, detail=result["error"])
     return result
+
+
+@app.get("/analyze/last")
+def analyze_last() -> dict:
+    """Último escaneo cacheado (rápido para pintar oportunidades al abrir)."""
+    cached = AdvisoryPipeline().load_analyze_cache()
+    if not cached:
+        raise HTTPException(status_code=404, detail="Sin caché aún. Ejecuta /analyze.")
+    return cached
 
 
 @app.get("/btg/status")
@@ -317,7 +340,7 @@ def journal(limit: int = Query(default=50, ge=1, le=500)) -> dict:
 
 @app.post("/autopilot/run")
 def autopilot_run(
-    top_n: int = Query(default=8, ge=1, le=30),
+    top_n: int = Query(default=30, ge=1, le=80),
     mode: str = Query(default="alpaca"),
 ) -> dict:
     """Ejecuta un ciclo de inversión automática (alpaca|paper)."""
@@ -412,7 +435,7 @@ def earnings_calendar(refresh: bool = Query(default=False)) -> dict:
 
 
 @app.get("/ai/decisions")
-def ai_decisions(top_n: int = Query(default=10, ge=1, le=30)) -> dict:
+def ai_decisions(top_n: int = Query(default=20, ge=1, le=80)) -> dict:
     """Decisiones de la capa IA sobre el análisis actual."""
     result = AdvisoryPipeline().analyze(top_n=top_n)
     if result.get("error"):

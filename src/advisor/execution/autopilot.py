@@ -386,8 +386,20 @@ class Autopilot:
             min_edge = min(min_edge, 0.0001)  # acepta edges casi 0+ tras costos
         min_prob = 0.50 if self.settings.allow_micro_edge else 0.51
 
+        # Sigue buscando en TODO el universo: actionable + buys del board de oportunidades
+        pool_items = list(analysis.get("actionable") or [])
+        seen_pool = {((x.get("prediction") or {}).get("ticker")) for x in pool_items}
+        for item in analysis.get("opportunities") or []:
+            tk = (item.get("prediction") or {}).get("ticker")
+            if not tk or tk in seen_pool:
+                continue
+            if (item.get("plan") or {}).get("action") != Action.BUY.value:
+                continue
+            pool_items.append(item)
+            seen_pool.add(tk)
+
         candidates = []
-        for item in analysis.get("actionable", []):
+        for item in pool_items:
             pred = item["prediction"]
             plan = dict(item["plan"])
             ticker = pred["ticker"]
@@ -399,29 +411,23 @@ class Autopilot:
                 continue
             if float(pred["probability_up"]) < min_prob:
                 continue
-            # Gate IA: si está activo, exige approve_trade
+            # Gate IA: solo bloquea AVOID; el resto sigue rotando en el universo
             if self.settings.ai_enabled and self.settings.ai_gate_autopilot:
                 ai = item.get("ai") or {}
+                if ai.get("action") == "avoid":
+                    actions.append(
+                        {
+                            "type": "ai_veto",
+                            "ok": True,
+                            "ticker": ticker,
+                            "reason": (ai.get("summary") or "IA marca avoid"),
+                            "ai_action": ai.get("action"),
+                            "conviction": ai.get("conviction"),
+                        }
+                    )
+                    continue
                 if not ai.get("approve_trade"):
-                    # En micro-edge, la IA local a veces es estricta: si edge>0 y score ok, deja pasar con size menor
-                    if not (
-                        self.settings.allow_micro_edge
-                        and float(plan["edge_net_pct"]) > 0
-                        and float(pred.get("score") or 0) >= 0.15
-                        and float(pred["probability_up"]) >= 0.55
-                    ):
-                        actions.append(
-                            {
-                                "type": "ai_veto",
-                                "ok": True,
-                                "ticker": ticker,
-                                "reason": (ai.get("summary") or "IA no aprueba la compra"),
-                                "ai_action": ai.get("action"),
-                                "conviction": ai.get("conviction"),
-                            }
-                        )
-                        continue
-                    plan["position_pct"] = float(plan["position_pct"]) * 0.5
+                    plan["position_pct"] = float(plan["position_pct"]) * 0.55
             if defense_mode:
                 plan["position_pct"] = float(plan["position_pct"]) * float(
                     self.settings.defense_risk_mult

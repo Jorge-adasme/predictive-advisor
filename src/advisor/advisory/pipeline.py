@@ -124,35 +124,46 @@ class AdvisoryPipeline:
                 )
             all_recs.append(Recommendation(prediction=pred, plan=plan, market=market, rank=0))
 
+        # Ordena el universo completo por edge/score (sigue buscando en TODOS)
+        all_recs = sorted(
+            all_recs,
+            key=lambda r: (float(r.plan.edge_net_pct), float(r.prediction.score)),
+            reverse=True,
+        )
+
+        opp_limit = max(top_n, int(getattr(self.settings, "opportunity_limit", 50) or 50))
         ranking = []
-        for idx, rec in enumerate(all_recs[: max(top_n * 2, top_n)], start=1):
+        for idx, rec in enumerate(all_recs[: max(opp_limit, top_n * 2)], start=1):
             ranking.append(rec.model_copy(update={"rank": idx}))
 
-        # Compras ejecutables (autopilot)
+        # Compras ejecutables (autopilot): del universo entero, no solo un puñado
         actionable = [
             r.model_copy()
             for r in all_recs
             if r.plan.action == Action.BUY and r.plan.position_pct > 0
         ]
-        actionable = sorted(
-            actionable,
-            key=lambda r: (float(r.plan.edge_net_pct), float(r.prediction.score)),
-            reverse=True,
-        )[:top_n]
+        actionable = actionable[:opp_limit]
         for idx, rec in enumerate(actionable, start=1):
             actionable[idx - 1] = rec.model_copy(update={"rank": idx})
 
-        # Oportunidades amplias: BUY + HOLD (cualquier chance razonable)
+        # Oportunidades amplias: BUY + HOLD con edge>=0 en TODO el universo
         opportunities = [
             r.model_copy()
             for r in all_recs
-            if r.plan.action in {Action.BUY, Action.HOLD} and r.plan.position_pct > 0
+            if r.plan.action in {Action.BUY, Action.HOLD}
+            and r.plan.position_pct > 0
+            and float(r.plan.edge_net_pct) >= 0
         ]
-        opportunities = sorted(
-            opportunities,
-            key=lambda r: (float(r.plan.edge_net_pct), float(r.prediction.score)),
-            reverse=True,
-        )[:top_n]
+        if len(opportunities) < max(8, top_n // 2):
+            # Si el mercado está flojo, igual muestra las menos malas del ranking
+            extra = [
+                r.model_copy()
+                for r in all_recs
+                if r.plan.action in {Action.BUY, Action.HOLD}
+                and r.prediction.ticker not in {x.prediction.ticker for x in opportunities}
+            ]
+            opportunities.extend(extra)
+        opportunities = opportunities[:opp_limit]
         for idx, rec in enumerate(opportunities, start=1):
             opportunities[idx - 1] = rec.model_copy(update={"rank": idx})
 
@@ -251,13 +262,22 @@ class AdvisoryPipeline:
             opp_payload = _attach(opp_payload)
             avoid_payload = _attach(avoid_payload)
             actionable_payload = _attach(actionable_payload)
-            # Autopilot solo ideas que la IA aprueba (si gate activo)
+            # Gate IA: solo bloquea AVOID duro. HOLD/buy siguen buscando rotación en el universo.
             if self.settings.ai_gate_autopilot:
-                actionable_payload = [
-                    r
-                    for r in actionable_payload
-                    if (r.get("ai") or {}).get("approve_trade") is True
-                ]
+                filtered = []
+                for r in actionable_payload:
+                    ai = r.get("ai") or {}
+                    if ai.get("action") == "avoid":
+                        continue
+                    if ai.get("approve_trade") is True:
+                        filtered.append(r)
+                        continue
+                    # Sin approve explícito: igual deja pasar micro/rotación con size menor
+                    if float((r.get("plan") or {}).get("edge_net_pct") or 0) > 0:
+                        plan = dict(r.get("plan") or {})
+                        plan["position_pct"] = float(plan.get("position_pct") or 0) * 0.55
+                        filtered.append({**r, "plan": plan, "ai_soft_pass": True})
+                actionable_payload = filtered
             ai_meta = {
                 "enabled": True,
                 "provider": agent.provider,
@@ -278,6 +298,7 @@ class AdvisoryPipeline:
             "actionable": actionable_payload,
             "opportunities": opp_payload,
             "do_not_invest": avoid_payload,
+            "universe_size": len(symbols),
             "ai_decisions": ai_decisions,
             "ai": ai_meta,
             "scanned": len(predictions),
@@ -306,6 +327,7 @@ class AdvisoryPipeline:
                 summary=message,
                 payload={
                     "scanned": len(predictions),
+                    "universe_size": len(symbols),
                     "opportunities": len(opp_payload),
                     "avoid": len(avoid_payload),
                     "actionable": len(actionable_payload),
@@ -315,7 +337,45 @@ class AdvisoryPipeline:
             )
         except Exception:
             pass
+        try:
+            self._write_analyze_cache(result)
+        except Exception:
+            pass
         return result
+
+    def _write_analyze_cache(self, result: dict) -> None:
+        import json
+        from datetime import datetime, timezone
+
+        path = self.settings.data_dir / "analyze_cache.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "as_of": datetime.now(timezone.utc).isoformat(),
+            "result": result,
+        }
+        path.write_text(json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
+
+    def load_analyze_cache(self) -> dict | None:
+        import json
+        from datetime import datetime, timezone
+
+        path = self.settings.data_dir / "analyze_cache.json"
+        if not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            ts = datetime.fromisoformat(payload["as_of"])
+            age = (datetime.now(timezone.utc) - ts).total_seconds()
+            ttl = int(getattr(self.settings, "analyze_cache_ttl_sec", 180) or 180)
+            if age > ttl * 3:  # demasiado viejo
+                return None
+            result = payload.get("result") or {}
+            result["cached"] = True
+            result["cache_age_sec"] = int(age)
+            result["cache_fresh"] = age <= ttl
+            return result
+        except Exception:
+            return None
 
     def draft_order(self, recommendation: Recommendation) -> dict:
         return self.btg.create_order_draft(recommendation.plan.model_dump(mode="json"))
