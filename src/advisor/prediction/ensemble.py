@@ -54,7 +54,8 @@ def ensemble_sleeves(
     )
 
     if regime == Regime.RISK_ON:
-        w = {"trend": 0.45, "alpha": 0.40, "defensive": 0.15}
+        # Bull: más peso a trend para no quedarse en cash eterno
+        w = {"trend": 0.55, "alpha": 0.35, "defensive": 0.10}
     elif regime == Regime.RISK_OFF:
         w = {"trend": 0.15, "alpha": 0.30, "defensive": 0.55}
     else:

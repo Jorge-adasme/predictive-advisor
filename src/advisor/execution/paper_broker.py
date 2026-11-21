@@ -123,6 +123,8 @@ class PaperBroker:
         stop: float,
         target: float,
         reason: str,
+        horizon_days: int = 10,
+        sector: str = "Unknown",
     ) -> dict[str, Any]:
         state = self._read()
         if state.get("halted"):
@@ -157,6 +159,9 @@ class PaperBroker:
             "opened_at": _now().isoformat(),
             "reason": reason,
             "trail_event": "",
+            "horizon_days": int(horizon_days),
+            "sector": sector or "Unknown",
+            "partial_taken": False,
         }
         order = {
             "ts": _now().isoformat(),
@@ -170,15 +175,26 @@ class PaperBroker:
         self._write(state)
         return {"ok": True, "order": order, "portfolio": self.status()}
 
-    def sell(self, ticker: str, price: float, reason: str) -> dict[str, Any]:
+    def sell(
+        self,
+        ticker: str,
+        price: float,
+        reason: str,
+        fraction: float = 1.0,
+    ) -> dict[str, Any]:
         state = self._read()
         pos = state["positions"].get(ticker)
         if not pos:
             return {"ok": False, "error": f"No hay posición en {ticker}"}
 
+        frac = float(min(max(fraction, 0.0), 1.0))
+        if frac <= 0:
+            return {"ok": False, "error": "fraction inválida"}
+
         exit_cost_pct = self.settings.round_trip_cost_pct / 2.0
         fill_price = float(price) * (1 - exit_cost_pct)
-        qty = float(pos["qty"])
+        qty_full = float(pos["qty"])
+        qty = qty_full * frac
         proceeds = qty * fill_price
         entry_cost = qty * float(pos["entry_price"])
         pnl = proceeds - entry_cost
@@ -193,6 +209,7 @@ class PaperBroker:
             "exit_price": fill_price,
             "pnl": pnl,
             "reason": reason,
+            "fraction": frac,
         }
         state["closed"].append(closed)
         order = {
@@ -203,9 +220,20 @@ class PaperBroker:
             "price": fill_price,
             "reason": reason,
             "pnl": pnl,
+            "fraction": frac,
         }
         state["orders"].append(order)
-        del state["positions"][ticker]
+
+        if frac >= 0.999:
+            del state["positions"][ticker]
+        else:
+            pos["qty"] = qty_full - qty
+            pos["partial_taken"] = True
+            # Tras parcial: stop al menos a break-even
+            entry = float(pos["entry_price"])
+            be = entry * (1 + self.settings.round_trip_cost_pct / 2.0)
+            pos["stop"] = max(float(pos.get("stop") or 0), be)
+            pos["trail_event"] = "partial_be"
 
         # Kill-switch por pérdida diaria
         equity_start = float(state["equity_start"])

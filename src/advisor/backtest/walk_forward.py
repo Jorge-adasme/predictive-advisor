@@ -107,11 +107,17 @@ def _simulate_hold(
     horizon_days: int,
     settings: Settings | None = None,
 ) -> tuple[float, str, pd.Timestamp]:
-    """Simula stop/target/horizon + trailing BE.
+    """Simula stop/target/horizon + trailing BE + partial TP + time-stop.
 
-    Conservador: (1) checa stop en low, (2) target en high, (3) ratchet con close.
+    Retorno efectivo: promedio ponderado si hubo parcial.
+    Conservador: (1) stop en low, (2) target/parcial en high, (3) ratchet con close.
     """
-    from advisor.risk.trailing import ratchet_stop
+    from advisor.risk.trailing import (
+        progress_in_r,
+        ratchet_stop,
+        risk_unit,
+        should_time_stop,
+    )
 
     if path.empty:
         return entry_price, "no_path", pd.Timestamp.now("UTC")
@@ -121,15 +127,62 @@ def _simulate_hold(
     window = path.iloc[:horizon_days]
     last_close, last_ts = entry_price, pd.Timestamp.now("UTC")
     cfg = settings
-    for ts, row in window.iterrows():
+    partial_taken = False
+    realized_weight = 0.0
+    realized_px = 0.0
+    remain_w = 1.0
+    partial_frac = float(cfg.partial_tp_fraction) if cfg else 0.5
+    partial_at = float(cfg.partial_tp_at_r) if cfg else 1.5
+
+    for day_i, (ts, row) in enumerate(window.iterrows(), start=1):
         low = float(row["Low"])
         high = float(row["High"])
         close = float(row["Close"])
+
         if low <= current_stop:
+            exit_px = current_stop
             reason = "stop" if current_stop <= initial_stop + 1e-9 else "trail_stop"
-            return current_stop, reason, pd.Timestamp(ts)
+            if partial_taken:
+                eff = realized_weight * realized_px + remain_w * exit_px
+                return eff, f"partial+{reason}", pd.Timestamp(ts)
+            return exit_px, reason, pd.Timestamp(ts)
+
+        # Partial TP: high alcanza +1.5R
+        if (
+            cfg is not None
+            and not partial_taken
+            and progress_in_r(entry_price, high, initial_stop) >= partial_at
+        ):
+            r = risk_unit(entry_price, initial_stop)
+            partial_px = entry_price + partial_at * r
+            realized_weight = partial_frac
+            realized_px = partial_px
+            remain_w = 1.0 - partial_frac
+            partial_taken = True
+            # BE en el resto
+            be = entry_price * (1 + cfg.round_trip_cost_pct / 2.0)
+            current_stop = max(current_stop, be)
+
         if high >= target:
+            if partial_taken:
+                eff = realized_weight * realized_px + remain_w * target
+                return eff, "partial+target", pd.Timestamp(ts)
             return target, "target", pd.Timestamp(ts)
+
+        if cfg is not None and should_time_stop(
+            entry=entry_price,
+            mark_price=close,
+            initial_stop=initial_stop,
+            days_held=day_i,
+            horizon_days=horizon_days,
+            time_stop_frac=cfg.time_stop_frac,
+            min_r=cfg.time_stop_min_r,
+        ):
+            if partial_taken:
+                eff = realized_weight * realized_px + remain_w * close
+                return eff, "partial+time_stop", pd.Timestamp(ts)
+            return close, "time_stop", pd.Timestamp(ts)
+
         if cfg is not None:
             upd = ratchet_stop(
                 entry=entry_price,
@@ -142,6 +195,10 @@ def _simulate_hold(
             )
             current_stop = upd.stop
         last_close, last_ts = close, pd.Timestamp(ts)
+
+    if partial_taken:
+        eff = realized_weight * realized_px + remain_w * last_close
+        return eff, "partial+horizon", last_ts
     return last_close, "horizon", last_ts
 
 
@@ -272,17 +329,39 @@ class WalkForwardBacktester:
                 continue
 
             predictions = apply_cross_sectional_ranks(predictions)
-            buys = []
+            from advisor.risk.portfolio_filters import select_diversified
+
+            raw_buys = []
             for pred in predictions:
                 plan = build_trade_plan(pred, market, settings)
                 if plan is None:
                     continue
                 if plan.action == Action.BUY and plan.position_pct > 0:
-                    buys.append((pred, plan))
-                if len(buys) >= max_positions:
-                    break
-            # Ordenar por edge neto / score ya viene del ranking
-            buys = buys[:max_positions]
+                    raw_buys.append(
+                        (
+                            {
+                                "ticker": pred.ticker,
+                                "sector": pred.sector,
+                                "probability_up": pred.probability_up,
+                            },
+                            {
+                                "entry_price": plan.entry_price,
+                                "stop_price": plan.stop_price,
+                                "target_price": plan.target_price,
+                                "position_pct": plan.position_pct,
+                                "edge_net_pct": plan.edge_net_pct,
+                                "_pred": pred,
+                                "_plan": plan,
+                            },
+                        )
+                    )
+            diversified = select_diversified(
+                raw_buys,
+                open_sectors=[],
+                max_positions=max_positions,
+                max_per_sector=settings.max_per_sector,
+            )
+            buys = [(d["_pred"], d["_plan"]) for _, d in diversified]
 
             if not buys:
                 cash_rebalances += 1

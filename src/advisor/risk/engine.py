@@ -92,12 +92,15 @@ def build_trade_plan(
         raw_pct *= 1.08
     position_pct = float(min(settings.max_position_pct, max(0.01, raw_pct)))
 
-    # Umbral BUY más estricto: score + probabilidad + edge + meta
+    # Umbral BUY: un poco más permisivo en risk_on prolongado (menos cash drag)
+    min_score = 0.28 if market.regime == Regime.RISK_ON else 0.32
+    min_prob = 0.54 if market.regime == Regime.RISK_ON else 0.55
+    min_meta = 0.52 if market.regime == Regime.RISK_ON else 0.55
     buy = (
-        prediction.score >= 0.32
-        and prediction.probability_up >= 0.55
+        prediction.score >= min_score
+        and prediction.probability_up >= min_prob
         and edge_net >= settings.min_edge_net_pct
-        and (meta <= 0 or meta >= 0.55)
+        and (meta <= 0 or meta >= min_meta)
     )
     action = Action.BUY if buy else Action.HOLD
 

@@ -68,3 +68,39 @@ def stop_loss_pct(entry: float, stop: float) -> float:
     if entry <= 0:
         return 0.0
     return max((float(entry) - float(stop)) / float(entry), 0.0)
+
+
+def progress_in_r(entry: float, mark_price: float, initial_stop: float) -> float:
+    r = risk_unit(entry, initial_stop)
+    return (float(mark_price) - float(entry)) / r
+
+
+def should_partial_take(
+    *,
+    entry: float,
+    mark_price: float,
+    initial_stop: float,
+    already_taken: bool,
+    partial_at_r: float = 1.5,
+) -> bool:
+    if already_taken:
+        return False
+    return progress_in_r(entry, mark_price, initial_stop) >= partial_at_r
+
+
+def should_time_stop(
+    *,
+    entry: float,
+    mark_price: float,
+    initial_stop: float,
+    days_held: int,
+    horizon_days: int,
+    time_stop_frac: float = 0.7,
+    min_r: float = 0.3,
+) -> bool:
+    if horizon_days <= 0:
+        return False
+    threshold = max(int(round(horizon_days * time_stop_frac)), 1)
+    if days_held < threshold:
+        return False
+    return progress_in_r(entry, mark_price, initial_stop) < min_r

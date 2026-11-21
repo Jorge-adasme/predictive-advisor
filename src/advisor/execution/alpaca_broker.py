@@ -105,6 +105,8 @@ class AlpacaBroker:
         stop: float,
         target: float,
         reason: str,
+        horizon_days: int = 10,
+        sector: str = "Unknown",
     ) -> dict[str, Any]:
         if self._halted:
             return {"ok": False, "error": f"Autopilot detenido: {self._halt_reason}"}
@@ -184,11 +186,37 @@ class AlpacaBroker:
             except Exception as exc2:
                 return {"ok": False, "error": str(exc2)}
 
-    def sell(self, ticker: str, price: float, reason: str) -> dict[str, Any]:
-        if self._halted and reason not in {"stop_loss", "take_profit", "kill_switch"}:
+    def sell(
+        self,
+        ticker: str,
+        price: float,
+        reason: str,
+        fraction: float = 1.0,
+    ) -> dict[str, Any]:
+        if self._halted and not any(
+            reason.startswith(x) for x in ("stop_loss", "take_profit", "kill_switch", "time_stop", "partial_tp")
+        ):
             return {"ok": False, "error": f"Autopilot detenido: {self._halt_reason}"}
         try:
-            order = self.client.close_position(ticker)
+            frac = float(min(max(fraction, 0.0), 1.0))
+            if frac < 0.999:
+                from alpaca.trading.enums import OrderSide, TimeInForce
+                from alpaca.trading.requests import MarketOrderRequest
+
+                pos = self.client.get_open_position(ticker)
+                qty = float(pos.qty) * frac
+                if qty <= 0:
+                    return {"ok": False, "error": "qty parcial inválida"}
+                order = self.client.submit_order(
+                    MarketOrderRequest(
+                        symbol=ticker,
+                        qty=round(qty, 6),
+                        side=OrderSide.SELL,
+                        time_in_force=TimeInForce.DAY,
+                    )
+                )
+            else:
+                order = self.client.close_position(ticker)
             return {
                 "ok": True,
                 "order": {
@@ -198,6 +226,7 @@ class AlpacaBroker:
                     "status": str(getattr(order, "status", "submitted")),
                     "price": float(price),
                     "reason": reason,
+                    "fraction": frac,
                     "ts": datetime.now(timezone.utc).isoformat(),
                 },
                 "portfolio": self.status(),

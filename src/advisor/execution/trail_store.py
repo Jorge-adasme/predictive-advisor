@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,8 @@ class TrailStore:
         stop: float,
         initial_stop: float,
         target: float,
+        horizon_days: int = 10,
+        sector: str = "Unknown",
     ) -> None:
         data = self._read()
         data[ticker] = {
@@ -38,11 +41,19 @@ class TrailStore:
             "initial_stop": float(initial_stop),
             "target": float(target),
             "trail_event": "",
+            "partial_taken": False,
+            "horizon_days": int(horizon_days),
+            "sector": sector or "Unknown",
+            "opened_at": datetime.now(timezone.utc).isoformat(),
         }
         self._write(data)
 
     def get(self, ticker: str) -> dict[str, Any] | None:
         return self._read().get(ticker)
+
+    def sector_of(self, ticker: str) -> str | None:
+        row = self.get(ticker)
+        return None if not row else row.get("sector")
 
     def update_stop(self, ticker: str, stop: float, event: str = "") -> None:
         data = self._read()
@@ -54,6 +65,14 @@ class TrailStore:
             if event:
                 row["trail_event"] = event
             self._write(data)
+
+    def mark_partial(self, ticker: str) -> None:
+        data = self._read()
+        row = data.get(ticker)
+        if not row:
+            return
+        row["partial_taken"] = True
+        self._write(data)
 
     def remove(self, ticker: str) -> None:
         data = self._read()

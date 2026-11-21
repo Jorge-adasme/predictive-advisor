@@ -126,6 +126,7 @@ meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.m
 - [x] Autopilot paper + portfolio + kill-switch
 - [x] Alpha Engine v2 (ensemble + meta-label + IR)
 - [x] Backtest walk-forward con costos reales (`advisor backtest`)
+- [x] v2.1: partial TP, time-stop, diversificación sectorial
 
 - [ ] Conector oficial BTG / Finanzas Abiertas
 - [ ] Semi-auto / live con aprobación

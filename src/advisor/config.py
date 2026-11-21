@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     breakeven_at_r: float = Field(default=1.0, ge=0.5, le=3.0)
     trail_at_r: float = Field(default=2.0, ge=1.0, le=5.0)
     trail_atr_mult: float = Field(default=2.0, ge=1.0, le=4.0)
+    # Gestión avanzada de posición
+    partial_tp_at_r: float = Field(default=1.5, ge=1.0, le=3.0)
+    partial_tp_fraction: float = Field(default=0.5, ge=0.25, le=0.75)
+    time_stop_frac: float = Field(default=0.7, ge=0.4, le=1.0)
+    time_stop_min_r: float = Field(default=0.3, ge=0.0, le=1.0)
+    max_positions: int = Field(default=4, ge=1, le=10)
+    max_per_sector: int = Field(default=1, ge=1, le=3)
 
     # Alpaca default: commission-free equities + slippage model
     commission_rate: float = Field(default=0.0, ge=0.0, le=0.05)
