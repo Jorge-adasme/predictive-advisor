@@ -1,0 +1,28 @@
+{
+  "market": "US",
+  "exchange": "NASDAQ/NYSE",
+  "currency": "USD",
+  "benchmark": "SPY",
+  "symbols": [
+    {"ticker": "AAPL", "name": "Apple", "sector": "Tech"},
+    {"ticker": "MSFT", "name": "Microsoft", "sector": "Tech"},
+    {"ticker": "NVDA", "name": "NVIDIA", "sector": "Tech"},
+    {"ticker": "AMZN", "name": "Amazon", "sector": "Consumer"},
+    {"ticker": "GOOGL", "name": "Alphabet", "sector": "Tech"},
+    {"ticker": "META", "name": "Meta", "sector": "Tech"},
+    {"ticker": "JPM", "name": "JPMorgan", "sector": "Financials"},
+    {"ticker": "XOM", "name": "Exxon", "sector": "Energy"},
+    {"ticker": "JNJ", "name": "Johnson & Johnson", "sector": "Health"},
+    {"ticker": "UNH", "name": "UnitedHealth", "sector": "Health"},
+    {"ticker": "HD", "name": "Home Depot", "sector": "Consumer"},
+    {"ticker": "PG", "name": "Procter & Gamble", "sector": "Consumer"},
+    {"ticker": "COST", "name": "Costco", "sector": "Consumer"},
+    {"ticker": "AVGO", "name": "Broadcom", "sector": "Tech"},
+    {"ticker": "LLY", "name": "Eli Lilly", "sector": "Health"},
+    {"ticker": "TSLA", "name": "Tesla", "sector": "Consumer"},
+    {"ticker": "V", "name": "Visa", "sector": "Financials"},
+    {"ticker": "MA", "name": "Mastercard", "sector": "Financials"},
+    {"ticker": "SPY", "name": "SPDR S&P 500 ETF", "sector": "ETF"},
+    {"ticker": "QQQ", "name": "Invesco QQQ", "sector": "ETF"}
+  ]
+}

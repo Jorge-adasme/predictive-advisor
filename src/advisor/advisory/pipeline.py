@@ -5,6 +5,7 @@ from advisor.adapters.yahoo import YahooMarketDataAdapter
 from advisor.analysis.regime import detect_regime
 from advisor.config import Settings, get_settings
 from advisor.models import Action, Recommendation
+from advisor.prediction.ranking import apply_cross_sectional_ranks
 from advisor.prediction.scoring import score_symbol
 from advisor.risk.engine import build_trade_plan
 
@@ -52,12 +53,15 @@ class AdvisoryPipeline:
                 history=hist,
                 regime=market.regime,
                 horizon_days=self.settings.horizon_days,
+                benchmark_history=benchmark_df,
             )
             if pred is not None:
                 predictions.append(pred)
 
+        predictions = apply_cross_sectional_ranks(predictions)
+
         all_recs: list[Recommendation] = []
-        for pred in sorted(predictions, key=lambda p: p.score, reverse=True):
+        for pred in predictions:
             plan = build_trade_plan(pred, market, self.settings)
             if plan is None:
                 continue

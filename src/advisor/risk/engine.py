@@ -13,44 +13,75 @@ def build_trade_plan(
     gross = prediction.expected_return
     edge_net = gross - settings.round_trip_cost_pct
 
-    # Filtros duros
-    if prediction.probability_up < 0.53 and gross > 0:
+    empiric_hit = float(prediction.factors.get("empirical_hit_rate", 0.0))
+    calib_q = float(prediction.factors.get("calibration_quality", 0.0))
+    atr_pct = float(prediction.factors.get("atr_pct", 0.02) or 0.02)
+    cs = float(prediction.factors.get("cross_sectional_z", 0.0))
+
+    # Filtros duros de certeza
+    if prediction.probability_up < 0.54 and gross > 0:
         return None
     if edge_net < settings.min_edge_net_pct:
         return _avoid_plan(prediction, edge_net, "Edge neto insuficiente tras costos.")
-
-    if market.regime == Regime.RISK_OFF and prediction.score < 0.6:
+    if market.regime == Regime.RISK_OFF and prediction.score < 0.55:
         return _avoid_plan(
             prediction,
             edge_net,
             "Régimen risk-off: se exigen señales más fuertes.",
         )
-
-    if prediction.score <= 0.15:
+    if prediction.score <= 0.18:
         return _avoid_plan(prediction, edge_net, "Score demasiado débil para abrir riesgo.")
+    if calib_q >= 0.25 and empiric_hit > 0 and empiric_hit < 0.48:
+        return _avoid_plan(
+            prediction,
+            edge_net,
+            "Hit-rate empírico bajo en señales similares.",
+        )
+    if cs < -0.6:
+        return _avoid_plan(
+            prediction,
+            edge_net,
+            "Debilitado en ranking cross-sectional del universo.",
+        )
 
     entry = prediction.last_price
-    # Stop ~ 1.2x vol diaria implícita o floor
-    daily_vol = max(market.benchmark_volatility_20d / (252 ** 0.5), 0.008)
-    stop_distance = max(entry * daily_vol * 2.2, entry * 0.02)
+
+    # Stops por ATR del activo (mejor que vol genérica del benchmark)
+    atr_stop = max(atr_pct * 2.0, 0.015)
+    bench_daily = max(market.benchmark_volatility_20d / (252 ** 0.5), 0.008)
+    stop_distance = max(entry * atr_stop, entry * bench_daily * 2.0, entry * 0.015)
     stop = entry - stop_distance
-    target_distance = max(entry * max(gross, settings.min_edge_net_pct * 2), stop_distance * 1.6)
+
+    # Target: al menos 1.8R o el E[r] neto proyectado
+    target_by_edge = entry * max(gross, settings.min_edge_net_pct * 2.5)
+    target_by_rr = stop_distance * 1.8
+    target_distance = max(target_by_edge, target_by_rr)
     target = entry + target_distance
     rr = target_distance / stop_distance if stop_distance else 0.0
 
-    # Position sizing por riesgo
+    if rr < 1.4:
+        return _avoid_plan(prediction, edge_net, "Reward/risk insuficiente (<1.4).")
+
     risk_budget = settings.risk_per_trade
     raw_pct = risk_budget / (stop_distance / entry)
     if market.regime == Regime.RISK_OFF:
-        raw_pct *= 0.6
+        raw_pct *= 0.55
     elif market.regime == Regime.RISK_ON:
         raw_pct *= 1.0
 
-    # Ajuste por confianza
-    raw_pct *= 0.7 + 0.3 * prediction.confidence
+    # Confianza + calidad de calibración + ranking
+    raw_pct *= 0.65 + 0.25 * prediction.confidence + 0.10 * max(cs, 0)
+    if atr_pct > 0.045:
+        raw_pct *= 0.75
     position_pct = float(min(settings.max_position_pct, max(0.01, raw_pct)))
 
-    action = Action.BUY if prediction.score >= 0.35 else Action.HOLD
+    # Umbral BUY más estricto: score + probabilidad + edge
+    buy = (
+        prediction.score >= 0.32
+        and prediction.probability_up >= 0.55
+        and edge_net >= settings.min_edge_net_pct
+    )
+    action = Action.BUY if buy else Action.HOLD
 
     return TradePlan(
         ticker=prediction.ticker,
@@ -61,7 +92,10 @@ def build_trade_plan(
         position_pct=round(position_pct, 4),
         risk_reward=round(rr, 2),
         edge_net_pct=round(edge_net, 5),
-        invalidation=f"Cierre diario bajo {stop:.2f} o deterioro de régimen a risk_off.",
+        invalidation=(
+            f"Cierre bajo {stop:.2f}, pérdida de RS vs benchmark, "
+            f"o régimen risk_off."
+        ),
         horizon_days=prediction.horizon_days,
     )
 
