@@ -91,6 +91,24 @@ class Autopilot:
                 horizon = int(stored.get("horizon_days") or horizon)
 
             if stop <= 0 or initial_stop <= 0:
+                # Aun sin stop guardado: respeta tope duro por activo
+                hard = float(self.settings.max_position_loss_pct)
+                if entry > 0 and px <= entry * (1.0 - hard):
+                    result = self.broker.sell(
+                        ticker, px, reason="max_position_loss", fraction=1.0
+                    )
+                    self.trails.remove(ticker)
+                    actions.append({"type": "exit", **result})
+                continue
+
+            # 0) Tope duro por activo (ej. −2.5% desde entrada) → vende esa acción
+            hard = float(self.settings.max_position_loss_pct)
+            if entry > 0 and px <= entry * (1.0 - hard):
+                result = self.broker.sell(
+                    ticker, px, reason="max_position_loss", fraction=1.0
+                )
+                self.trails.remove(ticker)
+                actions.append({"type": "exit", **result})
                 continue
 
             # 1) Partial take-profit a +1.5R
@@ -270,8 +288,9 @@ class Autopilot:
             equity > 0 and daily_pnl <= -equity * self.settings.max_daily_loss_pct
         )
 
-        if hit_daily_loss and not portfolio.get("halted"):
-            # 1) Cierra perdedoras (o flatten)  2) pausa nuevas compras
+        ks_mode = str(getattr(self.settings, "kill_switch_mode", "rotate") or "rotate").lower()
+        defense_mode = False
+        if hit_daily_loss:
             if self.settings.halt_flatten_all:
                 actions.extend(
                     self._close_positions_for_kill_switch(
@@ -284,7 +303,7 @@ class Autopilot:
                         portfolio, price_map, losers_only=True
                     )
                 )
-            portfolio = self.broker.halt("max_daily_loss")
+            portfolio = self.broker.status()
             closed_n = sum(1 for a in actions if a.get("kill_switch") and a.get("ok"))
             try:
                 from advisor.portfolio.audit import AuditLog
@@ -295,39 +314,34 @@ class Autopilot:
                     source=f"autopilot:{self.mode}",
                     summary=(
                         f"Pérdida diaria ≤ −{self.settings.max_daily_loss_pct:.0%}. "
-                        f"Pausa compras · cerradas={closed_n}"
+                        f"mode={ks_mode} · cerradas={closed_n}"
                     ),
                     payload={
                         "daily_pnl": daily_pnl,
                         "equity": equity,
+                        "mode": ks_mode,
                         "close_losers": self.settings.halt_close_losers,
                         "flatten_all": self.settings.halt_flatten_all,
-                        "actions": actions[-closed_n:] if closed_n else [],
                     },
                 )
             except Exception:
                 pass
-            return AutopilotResult(
-                ts=datetime.now(timezone.utc).isoformat(),
-                actions=actions,
-                portfolio=portfolio,
-                market=analysis.get("market"),
-                message=(
-                    f"Kill-switch diario (−{self.settings.max_daily_loss_pct:.0%}): "
-                    f"autopilot pausado"
-                    + (
-                        f" y se cerraron {closed_n} posición(es) en pérdida."
-                        if closed_n
-                        else (
-                            " (sin posiciones perdedoras que cerrar)."
-                            if self.settings.halt_close_losers
-                            and not self.settings.halt_flatten_all
-                            else "."
-                        )
-                    )
-                ),
-                mode=self.mode,
-            )
+
+            if ks_mode == "pause":
+                portfolio = self.broker.halt("max_daily_loss")
+                return AutopilotResult(
+                    ts=datetime.now(timezone.utc).isoformat(),
+                    actions=actions,
+                    portfolio=portfolio,
+                    market=analysis.get("market"),
+                    message=(
+                        f"Kill-switch pause (−{self.settings.max_daily_loss_pct:.0%}): "
+                        f"compras bloqueadas · cerradas={closed_n}."
+                    ),
+                    mode=self.mode,
+                )
+            # rotate (default): no bloquea todo — libera capital y busca mejores ideas
+            defense_mode = True
 
         if portfolio.get("halted"):
             return AutopilotResult(
@@ -342,6 +356,14 @@ class Autopilot:
                 mode=self.mode,
             )
 
+        # Defensa temprana: a mitad del presupuesto diario ya reduce tamaño
+        if (
+            not defense_mode
+            and equity > 0
+            and daily_pnl <= -equity * self.settings.max_daily_loss_pct * 0.5
+        ):
+            defense_mode = True
+
         open_positions = portfolio.get("positions", {}) or {}
         open_tickers = set(open_positions.keys())
         open_sectors = [
@@ -352,39 +374,58 @@ class Autopilot:
         regime = (analysis.get("market") or {}).get("regime", "neutral")
         max_positions = self.settings.max_positions
         if regime == "risk_on":
-            max_positions = min(max_positions + 1, 6)
+            max_positions = min(max_positions + 2, 12)
         elif regime == "risk_off":
-            max_positions = max(2, max_positions - 1)
+            max_positions = max(3, max_positions - 2)
+        if defense_mode:
+            max_positions = max(2, max_positions - 2)
 
         slots = max(max_positions - len(open_tickers), 0)
+        min_edge = float(self.settings.min_edge_net_pct)
+        if self.settings.allow_micro_edge:
+            min_edge = min(min_edge, 0.0001)  # acepta edges casi 0+ tras costos
+        min_prob = 0.50 if self.settings.allow_micro_edge else 0.51
+
         candidates = []
         for item in analysis.get("actionable", []):
             pred = item["prediction"]
-            plan = item["plan"]
+            plan = dict(item["plan"])
             ticker = pred["ticker"]
             if ticker in open_tickers:
                 continue
             if plan["action"] != Action.BUY.value:
                 continue
-            if float(plan["edge_net_pct"]) < self.settings.min_edge_net_pct:
+            if float(plan["edge_net_pct"]) < min_edge:
                 continue
-            if float(pred["probability_up"]) < 0.51:
+            if float(pred["probability_up"]) < min_prob:
                 continue
             # Gate IA: si está activo, exige approve_trade
             if self.settings.ai_enabled and self.settings.ai_gate_autopilot:
                 ai = item.get("ai") or {}
                 if not ai.get("approve_trade"):
-                    actions.append(
-                        {
-                            "type": "ai_veto",
-                            "ok": True,
-                            "ticker": ticker,
-                            "reason": (ai.get("summary") or "IA no aprueba la compra"),
-                            "ai_action": ai.get("action"),
-                            "conviction": ai.get("conviction"),
-                        }
-                    )
-                    continue
+                    # En micro-edge, la IA local a veces es estricta: si edge>0 y score ok, deja pasar con size menor
+                    if not (
+                        self.settings.allow_micro_edge
+                        and float(plan["edge_net_pct"]) > 0
+                        and float(pred.get("score") or 0) >= 0.15
+                        and float(pred["probability_up"]) >= 0.55
+                    ):
+                        actions.append(
+                            {
+                                "type": "ai_veto",
+                                "ok": True,
+                                "ticker": ticker,
+                                "reason": (ai.get("summary") or "IA no aprueba la compra"),
+                                "ai_action": ai.get("action"),
+                                "conviction": ai.get("conviction"),
+                            }
+                        )
+                        continue
+                    plan["position_pct"] = float(plan["position_pct"]) * 0.5
+            if defense_mode:
+                plan["position_pct"] = float(plan["position_pct"]) * float(
+                    self.settings.defense_risk_mult
+                )
             candidates.append((pred, plan))
 
         chosen = select_diversified(
@@ -396,18 +437,24 @@ class Autopilot:
 
         for pred, plan in chosen:
             ticker = pred["ticker"]
+            # Stop nunca más lejos que el tope duro por activo
+            entry_px = float(plan["entry_price"])
+            hard_stop = entry_px * (1.0 - float(self.settings.max_position_loss_pct))
+            stop_px = max(float(plan["stop_price"]), hard_stop)
             result = self.broker.buy(
                 ticker=ticker,
-                price=float(plan["entry_price"]),
+                price=entry_px,
                 position_pct=float(plan["position_pct"]),
-                stop=float(plan["stop_price"]),
+                stop=stop_px,
                 target=float(plan["target_price"]),
                 reason=(
                     f"auto_edge={plan['edge_net_pct']:.4f}"
                     f"|prob={pred['probability_up']:.2f}"
                     f"|stop_pct={plan.get('stop_pct', 0):.2%}"
+                    f"|hard_loss={self.settings.max_position_loss_pct:.2%}"
                     f"|sector={pred.get('sector', 'Unknown')}"
                     f"|regime={regime}"
+                    f"|defense={int(defense_mode)}"
                     f"|mode={self.mode}"
                 ),
                 horizon_days=int(plan.get("horizon_days") or self.settings.horizon_days),
@@ -418,9 +465,9 @@ class Autopilot:
                 open_tickers.add(ticker)
                 self.trails.upsert(
                     ticker,
-                    entry=float(plan["entry_price"]),
-                    stop=float(plan["stop_price"]),
-                    initial_stop=float(plan["stop_price"]),
+                    entry=entry_px,
+                    stop=stop_px,
+                    initial_stop=stop_px,
                     target=float(plan["target_price"]),
                     horizon_days=int(plan.get("horizon_days") or self.settings.horizon_days),
                     sector=str(pred.get("sector") or "Unknown"),
@@ -435,6 +482,8 @@ class Autopilot:
         else:
             done = [a for a in actions if a.get("ok")]
             message = f"Autopilot ({self.mode}) ejecutó {len(done)} acción(es)."
+            if defense_mode:
+                message += " · modo rotación/defensa (tamaño reducido)."
 
         try:
             AuditLog(self.settings).record(

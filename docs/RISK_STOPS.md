@@ -29,17 +29,27 @@ Ejemplos:
 
 Cada plan expone `stop_pct` (margen exacto de esa idea).
 
-## Kill-switch de portafolio
+## Stop por activo (lo primero)
 
-`ADVISOR_MAX_DAILY_LOSS_PCT=0.02` (default).
+Cada compra tiene:
+
+1. **Stop ATR** (típico −1.5% a −5%)
+2. **Tope duro** `ADVISOR_MAX_POSITION_LOSS_PCT=0.025` → si esa acción cae **−2.5%** desde la entrada, **se vende sola** (`max_position_loss`)
+
+No esperas al −2% de toda la cuenta: la posición mala se corta antes.
+
+## Kill-switch diario (modo rotación)
+
+`ADVISOR_MAX_DAILY_LOSS_PCT=0.02` + `ADVISOR_KILL_SWITCH_MODE=rotate` (default).
+
 Si el PnL diario ≤ −2% del equity:
 
-1. **Gestiona stops/trailing** de lo abierto (siempre).
-2. **Vende posiciones en pérdida** (`ADVISOR_HALT_CLOSE_LOSERS=true`, default).
-3. Opcional: **cierra todo** si `ADVISOR_HALT_FLATTEN_ALL=true`.
-4. **Pausa compras nuevas** (`halt` / `max_daily_loss`).
+1. Gestiona stops/trailing.
+2. Vende posiciones en rojo.
+3. **No bloquea todo**: entra en defensa (tamaño ×0.45) y **busca otras ideas** con edge.
+4. `pause` (opcional) sí bloquea compras nuevas.
 
-Las ganadoras se dejan correr (salvo flatten). En paper, el halt por pérdida diaria se limpia al cambiar el día.
+Micro-edges: si el edge neto > 0 (aunque sea chico), puede comprar con tamaño reducido (`ADVISOR_ALLOW_MICRO_EDGE=true`).
 
 ## Trailing (nuevo)
 

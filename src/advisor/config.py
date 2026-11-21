@@ -22,11 +22,19 @@ class Settings(BaseSettings):
     risk_per_trade: float = Field(default=0.0075, ge=0.001, le=0.05)
     max_position_pct: float = Field(default=0.12, ge=0.01, le=0.5)
     max_daily_loss_pct: float = Field(default=0.02, ge=0.005, le=0.1)
+    # Stop duro por activo: si cae X% desde entrada → vende esa posición
+    max_position_loss_pct: float = Field(default=0.025, ge=0.01, le=0.15)
+    # Al −X% diario: rotate = cierra perdedoras y sigue buscando; pause = bloquea compras
+    kill_switch_mode: str = "rotate"  # rotate | pause
     # Al disparar kill-switch diario: vender perdedoras (True) o solo pausar compras
     halt_close_losers: bool = True
     # Si True, cierra TODAS las posiciones (incluye ganadoras) al −X% diario
     halt_flatten_all: bool = False
-    min_edge_net_pct: float = Field(default=0.001, ge=0.0, le=0.05)
+    # En modo rotate, reduce tamaño de nuevas entradas
+    defense_risk_mult: float = Field(default=0.45, ge=0.15, le=1.0)
+    # Edge neto mínimo (permite ganancias chicas tras costos)
+    min_edge_net_pct: float = Field(default=0.0003, ge=0.0, le=0.05)
+    allow_micro_edge: bool = True  # compra edges pequeños con tamaño reducido
     # Stop inicial mínimo / ATR
     min_stop_pct: float = Field(default=0.015, ge=0.005, le=0.08)
     atr_stop_mult: float = Field(default=2.0, ge=1.0, le=4.0)
@@ -39,8 +47,8 @@ class Settings(BaseSettings):
     partial_tp_fraction: float = Field(default=0.5, ge=0.25, le=0.75)
     time_stop_frac: float = Field(default=0.7, ge=0.4, le=1.0)
     time_stop_min_r: float = Field(default=0.3, ge=0.0, le=1.0)
-    max_positions: int = Field(default=6, ge=1, le=12)
-    max_per_sector: int = Field(default=2, ge=1, le=4)
+    max_positions: int = Field(default=8, ge=1, le=16)
+    max_per_sector: int = Field(default=3, ge=1, le=5)
 
     # Noticias mundiales
     news_enabled: bool = True
@@ -63,7 +71,7 @@ class Settings(BaseSettings):
 
     lookback_days: int = Field(default=420, ge=60, le=2000)
     horizon_days: int = Field(default=10, ge=1, le=60)
-    top_n: int = Field(default=15, ge=1, le=40)
+    top_n: int = Field(default=25, ge=1, le=60)
 
     data_dir: Path = ROOT_DIR / "data"
     universe_path: Path = ROOT_DIR / "configs" / "universe_alpaca_us.json"

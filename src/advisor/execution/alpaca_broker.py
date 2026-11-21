@@ -194,7 +194,15 @@ class AlpacaBroker:
         fraction: float = 1.0,
     ) -> dict[str, Any]:
         if self._halted and not any(
-            reason.startswith(x) for x in ("stop_loss", "take_profit", "kill_switch", "time_stop", "partial_tp")
+            reason.startswith(x)
+            for x in (
+                "stop_loss",
+                "take_profit",
+                "kill_switch",
+                "time_stop",
+                "partial_tp",
+                "max_position_loss",
+            )
         ):
             return {"ok": False, "error": f"Autopilot detenido: {self._halt_reason}"}
         try:

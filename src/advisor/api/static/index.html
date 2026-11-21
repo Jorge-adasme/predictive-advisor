@@ -913,7 +913,7 @@
         <div class="meta" style="margin-top:12px"><strong>Presupuesto de pérdida diaria</strong> · queda ${money(budget, currency)}</div>
         <div class="progress ${usedCls}"><span style="width:${(used * 100).toFixed(0)}%"></span></div>
         <div class="meta" style="margin-top:10px"><strong>Sectores</strong> · ${esc(sectors)}</div>
-        <div class="meta">Stops, trailing, partial TP y time-stop activos. Kill-switch al −${pct(perf.max_daily_loss_pct || 0.02)} diario: pausa compras y vende posiciones en pérdida.</div>
+        <div class="meta">Cada acción tiene stop propio + tope duro (~−2.5%). Al −${pct(perf.max_daily_loss_pct || 0.02)} diario: vende perdedoras y <strong>rota</strong> a mejores ideas (no bloquea todo).</div>
       `;
     }
 
@@ -1008,7 +1008,7 @@
             <div>
               <div class="ticker">${esc(p.ticker)}</div>
               <div class="meta">${Number(p.qty).toFixed(4)} · entrada ${money(p.entry_price, currency)}${p.sector ? ' · ' + esc(p.sector) : ''}</div>
-              <div class="meta">stop ${p.stop != null ? money(p.stop, currency) : '—'} · target ${p.target != null ? money(p.target, currency) : '—'}</div>
+              <div class="meta">stop ${p.stop != null ? money(p.stop, currency) : '—'} · target ${p.target != null ? money(p.target, currency) : '—'} · tope −2.5%</div>
             </div>
             <div class="right">
               <div class="${p.pnl >= 0 ? 'up' : 'down'}" style="font-weight:800">${signedMoney(p.pnl, currency)}</div>
@@ -1293,7 +1293,7 @@
             <div>
               <div class="ticker">${esc(p.ticker)}</div>
               <div class="meta">${Number(p.qty).toFixed(4)} · entrada ${money(p.entry_price, currency)}${p.sector ? ' · ' + esc(p.sector) : ''}</div>
-              <div class="meta">stop ${p.stop != null ? money(p.stop, currency) : '—'} · target ${p.target != null ? money(p.target, currency) : '—'}</div>
+              <div class="meta">stop ${p.stop != null ? money(p.stop, currency) : '—'} · target ${p.target != null ? money(p.target, currency) : '—'} · tope −2.5%</div>
             </div>
             <div class="right">
               <div class="${p.pnl >= 0 ? 'up' : 'down'}" style="font-weight:800">${signedMoney(p.pnl, currency)}</div>

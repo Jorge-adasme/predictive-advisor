@@ -116,22 +116,22 @@ def build_trade_plan(
         raw_pct *= 1.08
     position_pct = float(min(settings.max_position_pct, max(0.01, raw_pct)))
 
-    # Umbrales BUY más abiertos: capturar más oportunidades con tamaño adaptativo
-    min_score = 0.12 if market.regime == Regime.RISK_ON else 0.18
+    # Umbrales BUY abiertos: también edges chicos (ganancia pequeña > 0 tras costos)
+    min_score = 0.08 if market.regime == Regime.RISK_ON else 0.12
     if market.regime == Regime.RISK_OFF:
-        min_score = 0.22
-    min_prob = 0.51
-    min_edge = settings.min_edge_net_pct * 0.5  # permite edges pequeños
+        min_score = 0.16
+    min_prob = 0.505
+    min_edge = settings.min_edge_net_pct * 0.25  # permite micro-edges
 
     if news_f >= 0.35:
         min_score -= 0.04
     if soft_flags:
-        min_score += 0.02 * min(len(soft_flags), 3)
+        min_score += 0.015 * min(len(soft_flags), 3)
 
     strong_buy = (
         prediction.score >= min_score + 0.12
         and prediction.probability_up >= 0.55
-        and edge_net >= settings.min_edge_net_pct
+        and edge_net >= max(settings.min_edge_net_pct, 0.0005)
         and (meta <= 0 or meta >= 0.52)
     )
     buy = (
@@ -140,14 +140,26 @@ def build_trade_plan(
         and edge_net >= min_edge
         and position_pct > 0
     )
+    # Micro: edge neto > 0 aunque sea mínimo → buy chico (rotar capital)
+    micro = (
+        bool(getattr(settings, "allow_micro_edge", True))
+        and edge_net > 0
+        and prediction.probability_up >= 0.50
+        and prediction.score >= 0.02
+        and position_pct > 0
+        and not earnings_bo
+    )
 
     if strong_buy or buy:
         action = Action.BUY
         if not strong_buy:
-            position_pct = float(max(0.01, position_pct * 0.7))  # size menor si es marginal
-    elif edge_net >= 0 and prediction.score >= 0.05:
-        action = Action.HOLD  # oportunidad a vigilar / semi
-        position_pct = float(max(0.01, position_pct * 0.45))
+            position_pct = float(max(0.008, position_pct * 0.65))
+    elif micro:
+        action = Action.BUY
+        position_pct = float(max(0.008, min(position_pct * 0.35, settings.max_position_pct * 0.35)))
+    elif edge_net >= 0 and prediction.score >= 0.0:
+        action = Action.HOLD  # vigilar / semi
+        position_pct = float(max(0.008, position_pct * 0.35))
     else:
         return _avoid_plan(
             prediction,
@@ -155,7 +167,17 @@ def build_trade_plan(
             "Sin edge/score mínimo: mejor no forzar.",
         )
 
+    hard_loss = float(getattr(settings, "max_position_loss_pct", 0.025) or 0.025)
+    # El stop operativo nunca permite perder más que el tope duro por activo
+    hard_stop = entry * (1.0 - hard_loss)
+    if stop < hard_stop:
+        stop = hard_stop
+        stop_distance = entry - stop
+        initial_stop_pct = stop_loss_pct(entry, stop)
+        rr = target_distance / stop_distance if stop_distance else 0.0
+
     note_soft = f" Soft:{','.join(soft_flags)}." if soft_flags else ""
+    micro_note = " Micro-edge." if action == Action.BUY and not (strong_buy or buy) else ""
     return TradePlan(
         ticker=prediction.ticker,
         action=action,
@@ -166,10 +188,10 @@ def build_trade_plan(
         risk_reward=round(rr, 2),
         edge_net_pct=round(edge_net, 5),
         invalidation=(
-            f"Stop inicial {stop:.2f} (−{initial_stop_pct:.1%}). "
-            f"Break-even a +{settings.breakeven_at_r:.0f}R; "
-            f"trail lock +1R a +{settings.trail_at_r:.0f}R."
-            f"{note_soft}"
+            f"Stop {stop:.2f} (−{initial_stop_pct:.1%}; tope duro −{hard_loss:.1%}). "
+            f"Break-even +{settings.breakeven_at_r:.0f}R; "
+            f"trail +{settings.trail_at_r:.0f}R."
+            f"{note_soft}{micro_note}"
         ),
         horizon_days=prediction.horizon_days,
         stop_pct=round(initial_stop_pct, 5),

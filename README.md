@@ -168,6 +168,7 @@ meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.m
 - [x] Capa IA de decisión (local committee + OpenAI/Anthropic opcional) con gate de autopilot
 - [x] UI responsive iPhone + escritorio
 - [x] Capa de confianza: system status, performance, audit log, trust bar
+- [x] Stop duro por activo + kill-switch en modo rotación + universo ampliado (~95 tickers)
 
 - [ ] Auth de usuario / sesiones
 - [ ] Notificaciones (email/push) de fills y kill-switch
