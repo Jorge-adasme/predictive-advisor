@@ -18,3 +18,12 @@ def test_btg_status():
     assert response.status_code == 200
     body = response.json()
     assert "orders" in body
+
+
+def test_dashboard():
+    response = client.get("/dashboard?mode=paper")
+    assert response.status_code == 200
+    body = response.json()
+    assert "headline" in body
+    assert "positions" in body
+    assert "movements" in body

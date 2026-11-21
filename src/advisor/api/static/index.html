@@ -4,299 +4,504 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Advisor Chile</title>
+  <meta name="theme-color" content="#f4f7fb" />
+  <title>Advisor · Dashboard</title>
   <style>
     :root {
-      --bg: #0b1220;
-      --card: #121a2b;
-      --text: #e8eefc;
-      --muted: #9db0d0;
-      --accent: #3dd68c;
-      --warn: #ffb020;
-      --danger: #ff5d5d;
-      --line: #243047;
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #142033;
+      --muted: #6b7c93;
+      --line: #e6edf5;
+      --green: #0f9f6e;
+      --green-soft: #e8f8f1;
+      --red: #e11d48;
+      --red-soft: #ffe8ee;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --amber: #d97706;
+      --amber-soft: #fff6e8;
+      --shadow: 0 10px 30px rgba(20, 32, 51, 0.06);
+      --radius: 22px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #15233d, var(--bg) 45%);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, #eaf2ff, transparent 28%),
+        radial-gradient(circle at top left, #e9fbf3, transparent 24%),
+        var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 16px;
-      padding-bottom: 40px;
+      padding: 18px 16px 96px;
     }
-    h1 { font-size: 1.35rem; margin: 0 0 4px; }
-    .sub { color: #9db0d0; font-size: 0.9rem; margin-bottom: 16px; }
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.55rem;
+      letter-spacing: -0.03em;
+    }
+    .hello { color: var(--muted); margin-top: 4px; font-size: 0.95rem; }
+    .badge {
+      background: var(--blue-soft);
+      color: var(--blue);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge.warn { background: var(--amber-soft); color: var(--amber); }
+    .badge.danger { background: var(--red-soft); color: var(--red); }
+    .badge.ok { background: var(--green-soft); color: var(--green); }
+
+    .hero {
+      background: linear-gradient(145deg, #12325d, #1f6feb 55%, #18a974);
+      color: white;
+      border-radius: 28px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+    }
+    .hero .label { opacity: 0.85; font-size: 0.9rem; }
+    .hero .equity {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin: 6px 0 14px;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .hero-pill {
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 18px;
+      padding: 12px;
+    }
+    .hero-pill .k { font-size: 0.75rem; opacity: 0.85; }
+    .hero-pill .v { font-size: 1.05rem; font-weight: 750; margin-top: 4px; }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
     .card {
-      background: rgba(18, 26, 43, 0.92);
+      background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
       margin-bottom: 12px;
-      backdrop-filter: blur(8px);
     }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; }
-    button, select {
-      appearance: none;
-      border: 0;
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 1rem;
-      font-weight: 600;
+    .stat .k { color: var(--muted); font-size: 0.8rem; }
+    .stat .v { font-size: 1.2rem; font-weight: 800; margin-top: 6px; letter-spacing: -0.02em; }
+    .up { color: var(--green); }
+    .down { color: var(--red); }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 2px 10px;
+      font-weight: 800;
+      font-size: 1.02rem;
+    }
+    .section-title span { color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+
+    .pos {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .pos:last-child { border-bottom: 0; padding-bottom: 0; }
+    .pos:first-child { padding-top: 0; }
+    .ticker { font-weight: 800; }
+    .meta { color: var(--muted); font-size: 0.82rem; margin-top: 3px; }
+    .right { text-align: right; }
+
+    .move {
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .move:last-child { border-bottom: 0; }
+    .icon {
+      width: 42px; height: 42px; border-radius: 14px;
+      display: grid; place-items: center; font-weight: 800;
+    }
+    .icon.buy { background: var(--green-soft); color: var(--green); }
+    .icon.sell { background: var(--red-soft); color: var(--red); }
+
+    .idea {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      margin-top: 10px;
+      background: #fbfcfe;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .pill {
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.75rem;
+      font-weight: 800;
+    }
+    .pill.buy { background: var(--green-soft); color: var(--green); }
+    .pill.hold { background: var(--amber-soft); color: var(--amber); }
+    .pill.avoid { background: var(--red-soft); color: var(--red); }
+
+    .actions {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      background: rgba(244,247,251,0.92);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      z-index: 20;
     }
     button {
-      background: linear-gradient(135deg, #2f6bff, #3dd68c);
-      color: #041018;
-      flex: 1;
-      min-width: 140px;
-    }
-    button.secondary { background: #243047; color: var(--text); }
-    button:disabled { opacity: 0.6; }
-    select { background: #1a2438; color: var(--text); border: 1px solid var(--line); }
-    .pill {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      background: #1d2a44;
-    }
-    .pill.buy { background: rgba(61, 214, 140, 0.2); color: var(--accent); }
-    .pill.avoid { background: rgba(255, 93, 93, 0.15); color: var(--danger); }
-    .pill.hold { background: rgba(255, 176, 32, 0.15); color: var(--warn); }
-    .msg {
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: #1a2438;
-      color: #d7e3ff;
+      appearance: none;
+      border: 0;
+      border-radius: 16px;
+      padding: 14px 10px;
       font-size: 0.92rem;
-      line-height: 1.4;
+      font-weight: 800;
+      background: var(--text);
+      color: white;
     }
-    .msg.warn { background: rgba(255, 176, 32, 0.12); color: #ffd28a; }
-    .msg.ok { background: rgba(61, 214, 140, 0.12); color: #b6f5d2; }
-    .ticker { font-size: 1.05rem; font-weight: 700; }
-    .meta { color: #9db0d0; font-size: 0.85rem; margin-top: 4px; }
-    .grid {
+    button.secondary { background: white; color: var(--text); border: 1px solid var(--line); }
+    button.good { background: var(--green); }
+    button.warn { background: var(--amber); color: white; }
+    button:disabled { opacity: 0.6; }
+
+    .banner {
+      border-radius: 16px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+      line-height: 1.35;
+    }
+    .banner.info { background: var(--blue-soft); color: #1e3a8a; }
+    .banner.warn { background: var(--amber-soft); color: #92400e; }
+    .banner.ok { background: var(--green-soft); color: #065f46; }
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 18px 8px;
+      font-size: 0.92rem;
+    }
+    .mini-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-top: 10px;
     }
-    .stat {
-      background: #0f1728;
-      border-radius: 12px;
+    .mini {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
       padding: 10px;
     }
-    .stat .k { color: #9db0d0; font-size: 0.75rem; }
-    .stat .v { font-size: 1rem; font-weight: 700; margin-top: 2px; }
-    ul { margin: 8px 0 0; padding-left: 18px; color: #c9d7f2; }
-    .footer { color: #7f92b3; font-size: 0.75rem; margin-top: 18px; line-height: 1.4; }
-    .loading { text-align: center; padding: 24px; color: #9db0d0; }
+    .mini .k { color: var(--muted); font-size: 0.72rem; }
+    .mini .v { font-weight: 800; margin-top: 3px; }
+    ul { margin: 8px 0 0; padding-left: 18px; color: #40516a; }
+    .footer-note {
+      color: var(--muted);
+      font-size: 0.75rem;
+      line-height: 1.4;
+      margin: 8px 2px 0;
+    }
   </style>
 </head>
 <body>
-  <h1>Advisor Chile</h1>
-  <div class="sub">Análisis predictivo · BTG-ready · uso desde iPhone</div>
-
-  <div class="card">
-    <div class="row">
-      <select id="topN">
-        <option value="5">Top 5</option>
-        <option value="8" selected>Top 8</option>
-        <option value="12">Top 12</option>
-      </select>
-      <button id="runBtn" onclick="runAnalyze()">Analizar</button>
-      <button id="autoBtn" class="secondary" onclick="runAutopilot()">Auto Alpaca</button>
+  <div class="top">
+    <div>
+      <h1>Tu dinero, claro</h1>
+      <div class="hello" id="hello">Cargando tu dashboard…</div>
     </div>
-    <div class="row" style="margin-top:8px">
-      <button class="secondary" onclick="loadPortfolio()">Ver portafolio</button>
-      <button class="secondary" onclick="haltBot()">Kill-switch</button>
-      <button class="secondary" onclick="resumeBot()">Reanudar</button>
-      <button class="secondary" onclick="liveStatus()">Estado Live BTG</button>
+    <div id="modeBadge" class="badge">—</div>
+  </div>
+
+  <div id="banner" class="banner info">Preparando resumen de portafolio…</div>
+
+  <div class="hero" id="hero">
+    <div class="label">Valor total</div>
+    <div class="equity" id="equity">—</div>
+    <div class="hero-grid">
+      <div class="hero-pill">
+        <div class="k">Hoy</div>
+        <div class="v" id="dailyPnl">—</div>
+      </div>
+      <div class="hero-pill">
+        <div class="k">Resultado</div>
+        <div class="v" id="totalPnl">—</div>
+      </div>
+      <div class="hero-pill">
+        <div class="k">Disponible</div>
+        <div class="v" id="cash">—</div>
+      </div>
+      <div class="hero-pill">
+        <div class="k">Posiciones</div>
+        <div class="v" id="openPos">—</div>
+      </div>
     </div>
   </div>
 
-  <div id="status" class="msg">Autopilot Alpaca: opera solo con edge neto. Configura API keys en .env (docs/ALPACA_SETUP.md).</div>
-  <div id="portfolio"></div>
-  <div id="market"></div>
-  <div id="list"></div>
-  <div class="footer">
-    No garantiza rentabilidad. Las recomendaciones consideran costos estimados.
-    Ejecución en BTG sigue siendo manual/semi-auto.
+  <div class="grid2">
+    <div class="card stat">
+      <div class="k">Estado del bot</div>
+      <div class="v" id="botState">—</div>
+    </div>
+    <div class="card stat">
+      <div class="k">Mercado</div>
+      <div class="v" id="marketState">—</div>
+    </div>
+  </div>
+
+  <div class="section-title">Posiciones abiertas <span id="posCount">0</span></div>
+  <div class="card" id="positionsCard"><div class="empty">Aún no hay posiciones abiertas.</div></div>
+
+  <div class="section-title">Movimientos <span>últimos</span></div>
+  <div class="card" id="movesCard"><div class="empty">Cuando el bot opere, verás aquí cada movimiento.</div></div>
+
+  <div class="section-title">Ideas de hoy <span id="ideasMeta">—</span></div>
+  <div class="card" id="ideasCard"><div class="empty">Toca “Analizar” para ver oportunidades.</div></div>
+
+  <p class="footer-note">
+    Este dashboard busca claridad, no promesas. El autopilot solo opera cuando estima ventaja después de costos.
+  </p>
+
+  <div class="actions">
+    <button class="secondary" id="refreshBtn" onclick="refreshAll()">Actualizar</button>
+    <button class="secondary" id="analyzeBtn" onclick="runAnalyze()">Analizar</button>
+    <button class="good" id="autoBtn" onclick="runAutopilot()">Auto</button>
   </div>
 
   <script>
-    const money = (n) => Number(n).toLocaleString('es-CL', { maximumFractionDigits: 2 });
-    const pct = (n) => `${(Number(n) * 100).toFixed(2)}%`;
-
-    async function runAnalyze() {
-      const btn = document.getElementById('runBtn');
-      const topN = document.getElementById('topN').value;
-      btn.disabled = true;
-      document.getElementById('status').className = 'msg';
-      document.getElementById('status').textContent = 'Analizando mercado… esto puede tomar unos segundos.';
-      document.getElementById('market').innerHTML = '';
-      document.getElementById('list').innerHTML = '<div class="loading">Escaneando acciones BCS…</div>';
-
+    const money = (n, currency='USD') => {
+      const v = Number(n || 0);
       try {
-        const res = await fetch(`/analyze?top_n=${topN}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error al analizar');
+        return v.toLocaleString('es-CL', { style: 'currency', currency, maximumFractionDigits: 2 });
+      } catch {
+        return `${v.toFixed(2)} ${currency}`;
+      }
+    };
+    const pct = (n) => `${(Number(n || 0) * 100).toFixed(2)}%`;
+    const signedMoney = (n, currency='USD') => {
+      const v = Number(n || 0);
+      const sign = v > 0 ? '+' : '';
+      return sign + money(v, currency);
+    };
+    const sideLabel = (side) => {
+      const s = String(side || '').toLowerCase();
+      if (s.includes('buy')) return 'Compra';
+      if (s.includes('sell')) return 'Venta';
+      return side || 'Movimiento';
+    };
 
-        const m = data.market || {};
-        const actionable = (data.actionable || []).length > 0;
-        document.getElementById('status').className = 'msg ' + (actionable ? 'ok' : 'warn');
-        document.getElementById('status').textContent = data.message || 'Análisis listo';
+    let currency = 'USD';
+    let lastDashboard = null;
 
-        document.getElementById('market').innerHTML = `
-          <div class="card">
-            <div><span class="pill">${m.regime || 'n/a'}</span></div>
-            <div class="grid">
-              <div class="stat"><div class="k">Score régimen</div><div class="v">${Number(m.regime_score || 0).toFixed(2)}</div></div>
-              <div class="stat"><div class="k">Retorno 20d</div><div class="v">${pct(m.benchmark_return_20d || 0)}</div></div>
-              <div class="stat"><div class="k">Vol 20d</div><div class="v">${pct(m.benchmark_volatility_20d || 0)}</div></div>
-              <div class="stat"><div class="k">Costo round-trip</div><div class="v">${pct((data.cost_model || {}).round_trip_cost_pct || 0)}</div></div>
+    function setBanner(text, type='info') {
+      const el = document.getElementById('banner');
+      el.className = `banner ${type}`;
+      el.textContent = text;
+    }
+
+    function renderDashboard(data) {
+      lastDashboard = data;
+      currency = data.currency || 'USD';
+      const h = data.headline || {};
+      document.getElementById('hello').textContent =
+        h.halted ? 'El bot está en pausa por seguridad' : 'Aquí ves tu progreso en tiempo real';
+      const badge = document.getElementById('modeBadge');
+      badge.textContent = (data.mode || 'paper').toUpperCase();
+      badge.className = 'badge ' + (String(data.mode).includes('alpaca') ? 'ok' : 'warn');
+
+      document.getElementById('equity').textContent = money(h.equity, currency);
+      const daily = document.getElementById('dailyPnl');
+      daily.textContent = signedMoney(h.daily_pnl, currency);
+      daily.style.opacity = 1;
+      const total = document.getElementById('totalPnl');
+      total.textContent = signedMoney(h.total_pnl, currency);
+      document.getElementById('cash').textContent = money(h.cash, currency);
+      document.getElementById('openPos').textContent = String(h.open_positions || 0);
+
+      document.getElementById('botState').textContent = h.halted ? 'Pausado' : 'Activo';
+      document.getElementById('botState').className = 'v ' + (h.halted ? 'down' : 'up');
+
+      if (data.warning) setBanner(data.warning, 'warn');
+      else if (h.halted) setBanner(`Bot pausado: ${h.halt_reason || 'kill-switch'}`, 'warn');
+      else if ((h.daily_pnl || 0) >= 0) setBanner('Buen ritmo: hoy vas en positivo o plano. Sigue con disciplina.', 'ok');
+      else setBanner('Hoy vas en rojo. El bot prioriza proteger capital antes de forzar operaciones.', 'warn');
+
+      // Positions
+      const positions = data.positions || [];
+      document.getElementById('posCount').textContent = String(positions.length);
+      const posCard = document.getElementById('positionsCard');
+      if (!positions.length) {
+        posCard.innerHTML = '<div class="empty">Sin posiciones abiertas por ahora. Tranquilo: no operar también es una decisión.</div>';
+      } else {
+        posCard.innerHTML = positions.map(p => `
+          <div class="pos">
+            <div>
+              <div class="ticker">${p.ticker}</div>
+              <div class="meta">${Number(p.qty).toFixed(4)} · entrada ${money(p.entry_price, currency)}</div>
             </div>
-            <ul>${(m.notes || []).map(n => `<li>${n}</li>`).join('')}</ul>
-          </div>`;
+            <div class="right">
+              <div class="${p.pnl >= 0 ? 'up' : 'down'}" style="font-weight:800">${signedMoney(p.pnl, currency)}</div>
+              <div class="meta">${pct(p.pnl_pct)} · último ${money(p.last_price, currency)}</div>
+            </div>
+          </div>`).join('');
+      }
 
-        const recs = data.recommendations || [];
-        if (!recs.length) {
-          document.getElementById('list').innerHTML = '<div class="card">Sin resultados.</div>';
-          return;
-        }
-
-        document.getElementById('list').innerHTML = recs.map(r => {
-          const p = r.prediction;
-          const plan = r.plan;
-          const action = plan.action;
+      // Movements
+      const moves = data.movements || [];
+      const movesCard = document.getElementById('movesCard');
+      if (!moves.length) {
+        movesCard.innerHTML = '<div class="empty">Todavía no hay movimientos. Cuando Auto compre o venda, aparecerá aquí.</div>';
+      } else {
+        movesCard.innerHTML = moves.slice(0, 12).map(m => {
+          const side = String(m.side || '').toLowerCase();
+          const isBuy = side.includes('buy');
+          const pnl = m.pnl;
           return `
-            <div class="card">
-              <div class="row" style="justify-content:space-between;align-items:center">
-                <div>
-                  <div class="ticker">#${r.rank} ${p.ticker}</div>
-                  <div class="meta">${p.name} · ${p.sector}</div>
-                </div>
-                <span class="pill ${action}">${action}</span>
+            <div class="move">
+              <div class="icon ${isBuy ? 'buy' : 'sell'}">${isBuy ? '↑' : '↓'}</div>
+              <div>
+                <div class="ticker">${sideLabel(m.side)} · ${m.ticker || '—'}</div>
+                <div class="meta">${m.reason || m.status || 'orden'} · ${String(m.ts || '').replace('T', ' ').slice(0, 19)}</div>
               </div>
-              <div class="grid">
-                <div class="stat"><div class="k">Prob. alza</div><div class="v">${pct(p.probability_up)}</div></div>
-                <div class="stat"><div class="k">E[r]</div><div class="v">${pct(p.expected_return)}</div></div>
-                <div class="stat"><div class="k">Edge neto</div><div class="v">${pct(plan.edge_net_pct)}</div></div>
-                <div class="stat"><div class="k">Posición</div><div class="v">${pct(plan.position_pct)}</div></div>
-                <div class="stat"><div class="k">Entrada</div><div class="v">${money(plan.entry_price)}</div></div>
-                <div class="stat"><div class="k">Stop</div><div class="v">${money(plan.stop_price)}</div></div>
-                <div class="stat"><div class="k">Target</div><div class="v">${money(plan.target_price)}</div></div>
-                <div class="stat"><div class="k">Horizonte</div><div class="v">${plan.horizon_days}d</div></div>
+              <div class="right">
+                <div style="font-weight:800">${m.price != null ? money(m.price, currency) : '—'}</div>
+                <div class="meta ${pnl == null ? '' : (pnl >= 0 ? 'up' : 'down')}">${pnl == null ? (m.qty != null ? `${Number(m.qty).toFixed(3)} u` : '') : signedMoney(pnl, currency)}</div>
               </div>
-              <ul>${(p.reasons || []).map(x => `<li>+ ${x}</li>`).join('')}</ul>
-              <ul>${(p.risks || []).map(x => `<li>! ${x}</li>`).join('')}</ul>
-              <div class="meta" style="margin-top:8px">${plan.invalidation || ''}</div>
-              ${action === 'buy' ? `<div class="row" style="margin-top:10px">
-                <button class="secondary" onclick="decide('${p.ticker}','accepted')">Aceptar</button>
-                <button class="secondary" onclick="decide('${p.ticker}','rejected')">Rechazar</button>
-              </div>` : ''}
             </div>`;
         }).join('');
+      }
+    }
+
+    function renderIdeas(result) {
+      const market = result.market || {};
+      document.getElementById('marketState').textContent = market.regime || '—';
+      document.getElementById('ideasMeta').textContent = result.message ? 'actualizado' : '—';
+      const list = result.recommendations || [];
+      const card = document.getElementById('ideasCard');
+      if (result.error) {
+        card.innerHTML = `<div class="empty">${result.error}</div>`;
+        return;
+      }
+      if (!list.length) {
+        card.innerHTML = '<div class="empty">Sin ideas por ahora.</div>';
+        return;
+      }
+      card.innerHTML = `
+        <div class="meta">${result.message || ''}</div>
+        ${list.map(r => {
+          const p = r.prediction;
+          const plan = r.plan;
+          return `
+            <div class="idea">
+              <div class="row" style="justify-content:space-between">
+                <div>
+                  <div class="ticker">#${r.rank} ${p.ticker}</div>
+                  <div class="meta">${p.name}</div>
+                </div>
+                <span class="pill ${plan.action}">${plan.action}</span>
+              </div>
+              <div class="mini-grid">
+                <div class="mini"><div class="k">Prob. alza</div><div class="v">${pct(p.probability_up)}</div></div>
+                <div class="mini"><div class="k">Retorno est.</div><div class="v">${pct(p.expected_return)}</div></div>
+                <div class="mini"><div class="k">Edge neto</div><div class="v">${pct(plan.edge_net_pct)}</div></div>
+                <div class="mini"><div class="k">Tamaño</div><div class="v">${pct(plan.position_pct)}</div></div>
+              </div>
+              <ul>${(p.reasons || []).slice(0,3).map(x => `<li>${x}</li>`).join('')}</ul>
+            </div>`;
+        }).join('')}`;
+    }
+
+    async function refreshAll() {
+      const btn = document.getElementById('refreshBtn');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/dashboard?mode=alpaca');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'No se pudo cargar dashboard');
+        renderDashboard(data);
       } catch (err) {
-        document.getElementById('status').className = 'msg warn';
-        document.getElementById('status').textContent = err.message || String(err);
-        document.getElementById('list').innerHTML = '';
+        setBanner(err.message || String(err), 'warn');
       } finally {
         btn.disabled = false;
       }
     }
 
-    async function decide(ticker, decision) {
+    async function runAnalyze() {
+      const btn = document.getElementById('analyzeBtn');
+      btn.disabled = true;
+      setBanner('Analizando mercado… esto puede tomar unos segundos.', 'info');
       try {
-        const res = await fetch('/decisions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticker, decision, note: 'desde iPhone' })
-        });
+        const res = await fetch('/analyze?top_n=8');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'No se pudo registrar');
-        alert(decision === 'accepted' ? 'Registrado + draft BTG creado' : 'Decisión registrada');
+        if (!res.ok) throw new Error(data.detail || 'Error al analizar');
+        renderIdeas(data);
+        setBanner(data.message || 'Análisis listo', (data.actionable || []).length ? 'ok' : 'warn');
       } catch (err) {
-        alert(err.message || String(err));
+        setBanner(err.message || String(err), 'warn');
+      } finally {
+        btn.disabled = false;
       }
-    }
-
-    function renderPortfolio(p) {
-      document.getElementById('portfolio').innerHTML = `
-        <div class="card">
-          <div class="ticker">Portafolio paper</div>
-          <div class="grid">
-            <div class="stat"><div class="k">Equity</div><div class="v">${money(p.equity)}</div></div>
-            <div class="stat"><div class="k">Cash</div><div class="v">${money(p.cash)}</div></div>
-            <div class="stat"><div class="k">PnL total</div><div class="v">${money(p.total_pnl)}</div></div>
-            <div class="stat"><div class="k">PnL diario</div><div class="v">${money(p.daily_pnl)}</div></div>
-            <div class="stat"><div class="k">Posiciones</div><div class="v">${p.open_positions}</div></div>
-            <div class="stat"><div class="k">Estado</div><div class="v">${p.halted ? 'DETENIDO' : 'ACTIVO'}</div></div>
-          </div>
-          ${p.halt_reason ? `<div class="meta">Halt: ${p.halt_reason}</div>` : ''}
-        </div>`;
     }
 
     async function runAutopilot() {
       const btn = document.getElementById('autoBtn');
-      const topN = document.getElementById('topN').value;
       btn.disabled = true;
-      document.getElementById('status').className = 'msg';
-      document.getElementById('status').textContent = 'Autopilot ejecutando ciclo paper…';
+      setBanner('Ejecutando autopilot… buscando solo operaciones con ventaja neta.', 'info');
       try {
-        const res = await fetch(`/autopilot/run?top_n=${topN}&mode=alpaca`, { method: 'POST' });
+        const res = await fetch('/autopilot/run?top_n=8&mode=alpaca', { method: 'POST' });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error autopilot');
-        document.getElementById('status').className = 'msg ' + ((data.actions || []).some(a => a.ok) ? 'ok' : 'warn');
-        document.getElementById('status').textContent = data.message;
-        renderPortfolio(data.portfolio);
-        await runAnalyze();
+        if (!res.ok) throw new Error(data.detail || 'Error en autopilot');
+        setBanner(data.message || 'Autopilot listo', (data.actions || []).some(a => a.ok) ? 'ok' : 'warn');
+        if (data.market) {
+          document.getElementById('marketState').textContent = data.market.regime || '—';
+        }
+        await refreshAll();
       } catch (err) {
-        document.getElementById('status').className = 'msg warn';
-        document.getElementById('status').textContent = err.message || String(err);
+        setBanner(err.message || String(err), 'warn');
       } finally {
         btn.disabled = false;
       }
     }
 
-    async function loadPortfolio() {
-      try {
-        const res = await fetch('/portfolio?mode=alpaca');
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Sin portafolio Alpaca');
-        renderPortfolio(data);
-      } catch (err) {
-        document.getElementById('portfolio').innerHTML =
-          `<div class="card"><div class="meta">Alpaca no configurado aún: ${err.message || err}. Ver docs/ALPACA_SETUP.md</div></div>`;
-      }
-    }
+    // Long-press helpers on desktop/mobile via extra buttons in banner area
+    document.getElementById('botState').addEventListener('click', async () => {
+      if (!lastDashboard) return;
+      const halted = lastDashboard.headline?.halted;
+      const endpoint = halted ? '/portfolio/resume?mode=alpaca' : '/portfolio/halt?reason=manual_ui&mode=alpaca';
+      await fetch(endpoint, { method: 'POST' });
+      await refreshAll();
+    });
 
-    async function haltBot() {
-      const res = await fetch('/portfolio/halt?reason=manual_iphone&mode=alpaca', { method: 'POST' });
-      renderPortfolio(await res.json());
-      document.getElementById('status').className = 'msg warn';
-      document.getElementById('status').textContent = 'Kill-switch activado. Autopilot detenido.';
-    }
-
-    async function resumeBot() {
-      const res = await fetch('/portfolio/resume?mode=alpaca', { method: 'POST' });
-      renderPortfolio(await res.json());
-      document.getElementById('status').className = 'msg ok';
-      document.getElementById('status').textContent = 'Autopilot reanudado.';
-    }
-
-    async function liveStatus() {
-      const res = await fetch('/live/btg/status');
-      const data = await res.json();
-      document.getElementById('status').className = 'msg warn';
-      document.getElementById('status').textContent =
-        `${data.reason} Próximos pasos: ${(data.next_steps || []).join(' → ')}`;
-    }
-
-    loadPortfolio();
-    liveStatus();
+    refreshAll();
   </script>
 </body>
 </html>

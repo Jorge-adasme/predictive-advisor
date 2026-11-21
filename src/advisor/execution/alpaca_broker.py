@@ -41,6 +41,30 @@ class AlpacaBroker:
             }
         equity = float(account.equity)
         last_equity = float(account.last_equity)
+        orders = []
+        try:
+            from alpaca.trading.enums import QueryOrderStatus
+            from alpaca.trading.requests import GetOrdersRequest
+
+            raw_orders = self.client.get_orders(
+                filter=GetOrdersRequest(status=QueryOrderStatus.ALL, limit=30)
+            )
+            for o in raw_orders:
+                orders.append(
+                    {
+                        "ts": str(getattr(o, "submitted_at", "") or ""),
+                        "side": str(o.side),
+                        "ticker": o.symbol,
+                        "qty": float(o.qty) if o.qty is not None else None,
+                        "notional": float(o.notional) if o.notional is not None else None,
+                        "price": float(o.filled_avg_price) if o.filled_avg_price else None,
+                        "status": str(o.status),
+                        "reason": str(getattr(o, "client_order_id", "") or ""),
+                    }
+                )
+        except Exception:
+            orders = []
+
         return {
             "mode": "alpaca_paper" if self.settings.alpaca_paper else "alpaca_live",
             "cash": float(account.cash),
@@ -54,6 +78,8 @@ class AlpacaBroker:
             "halted": self._halted,
             "halt_reason": self._halt_reason,
             "account_status": str(account.status),
+            "orders": orders,
+            "closed": [],
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 

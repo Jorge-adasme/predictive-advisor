@@ -39,6 +39,98 @@ def health() -> dict:
     return {"status": "ok", "service": "predictive-advisor"}
 
 
+@app.get("/dashboard")
+def dashboard(mode: str = Query(default="alpaca")) -> dict:
+    """Resumen amigable para la UI: portafolio + movimientos."""
+    from advisor.execution.autopilot import build_broker
+    from advisor.execution.paper_broker import PaperBroker
+
+    settings = get_settings()
+    used_mode = mode
+    warning = None
+    try:
+        broker = build_broker(settings, mode)
+        portfolio = broker.status()
+    except Exception as exc:
+        used_mode = "paper"
+        warning = f"Alpaca no disponible ({exc}). Mostrando paper local."
+        portfolio = PaperBroker(settings).status()
+
+    movements: list[dict] = []
+    for o in portfolio.get("orders", [])[-20:]:
+        movements.append(
+            {
+                "type": "order",
+                "ts": o.get("ts"),
+                "side": o.get("side"),
+                "ticker": o.get("ticker") or o.get("symbol"),
+                "qty": o.get("qty"),
+                "price": o.get("price"),
+                "pnl": o.get("pnl"),
+                "status": o.get("status"),
+                "reason": o.get("reason"),
+            }
+        )
+    for c in portfolio.get("closed", [])[-20:]:
+        movements.append(
+            {
+                "type": "closed",
+                "ts": c.get("ts"),
+                "side": "sell",
+                "ticker": c.get("ticker"),
+                "qty": c.get("qty"),
+                "price": c.get("exit_price"),
+                "pnl": c.get("pnl"),
+                "status": "closed",
+                "reason": c.get("reason"),
+            }
+        )
+    movements = sorted(movements, key=lambda m: str(m.get("ts") or ""), reverse=True)[:30]
+
+    positions = []
+    for ticker, pos in (portfolio.get("positions") or {}).items():
+        entry = float(pos.get("entry_price") or 0)
+        last = float(pos.get("last_price") or entry)
+        qty = float(pos.get("qty") or 0)
+        pnl = float(pos.get("unrealized_pl") or ((last - entry) * qty))
+        pnl_pct = ((last / entry) - 1.0) if entry else 0.0
+        positions.append(
+            {
+                "ticker": ticker,
+                "qty": qty,
+                "entry_price": entry,
+                "last_price": last,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "stop": pos.get("stop"),
+                "target": pos.get("target"),
+            }
+        )
+    positions = sorted(positions, key=lambda p: p["pnl"], reverse=True)
+
+    daily = float(portfolio.get("daily_pnl") or 0)
+    total = float(portfolio.get("total_pnl") or 0)
+    return {
+        "mode": used_mode,
+        "warning": warning,
+        "headline": {
+            "equity": float(portfolio.get("equity") or 0),
+            "cash": float(portfolio.get("cash") or 0),
+            "daily_pnl": daily,
+            "total_pnl": total,
+            "daily_positive": daily >= 0,
+            "total_positive": total >= 0,
+            "open_positions": int(portfolio.get("open_positions") or len(positions)),
+            "halted": bool(portfolio.get("halted")),
+            "halt_reason": portfolio.get("halt_reason") or "",
+            "updated_at": portfolio.get("updated_at"),
+        },
+        "positions": positions,
+        "movements": movements,
+        "currency": settings.base_currency,
+    }
+
+
 @app.get("/analyze")
 def analyze(top_n: int = Query(default=8, ge=1, le=30)) -> dict:
     result = AdvisoryPipeline().analyze(top_n=top_n)
