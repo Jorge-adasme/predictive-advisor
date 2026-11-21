@@ -137,5 +137,52 @@ def btg_status() -> None:
     console.print_json(json.dumps(status.__dict__, default=str))
 
 
+@app.command("autopilot")
+def autopilot(
+    once: bool = typer.Option(True, help="Ejecutar un ciclo y salir"),
+    top: int = typer.Option(8, help="Ideas a evaluar"),
+) -> None:
+    """Ejecuta inversiones automáticamente en modo PAPER con risk gates."""
+    from advisor.execution.autopilot import Autopilot
+
+    result = Autopilot(mode="paper").run_once(top_n=top)
+    console.print(f"[bold]{result.message}[/bold]")
+    console.print_json(
+        json.dumps(
+            {
+                "ts": result.ts,
+                "actions": result.actions,
+                "portfolio": result.portfolio,
+                "market": result.market,
+            },
+            default=str,
+        )
+    )
+    if not once:
+        console.print("[yellow]Loop continuo: usa un scheduler/cron por ahora.[/yellow]")
+
+
+@app.command("portfolio")
+def portfolio() -> None:
+    """Estado del portafolio paper."""
+    from advisor.execution.paper_broker import PaperBroker
+
+    console.print_json(json.dumps(PaperBroker(get_settings()).status(), default=str))
+
+
+@app.command("halt")
+def halt(reason: str = typer.Option("manual_stop")) -> None:
+    from advisor.execution.paper_broker import PaperBroker
+
+    console.print_json(json.dumps(PaperBroker(get_settings()).halt(reason), default=str))
+
+
+@app.command("resume")
+def resume() -> None:
+    from advisor.execution.paper_broker import PaperBroker
+
+    console.print_json(json.dumps(PaperBroker(get_settings()).resume(), default=str))
+
+
 if __name__ == "__main__":
     app()

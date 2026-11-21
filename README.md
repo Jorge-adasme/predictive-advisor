@@ -75,15 +75,42 @@ Una recomendación `buy` solo aparece si:
 - el régimen de mercado no invalida la idea,
 - el tamaño respeta riesgo por trade y tope de posición.
 
+## Autopilot (paper)
+
+Ejecuta automáticamente compras/ventas **simuladas** solo cuando hay edge neto estimado:
+
+```bash
+advisor autopilot --top 8
+advisor portfolio
+advisor halt
+advisor resume
+```
+
+API:
+
+- `POST /autopilot/run`
+- `GET /portfolio`
+- `POST /portfolio/halt`
+- `POST /portfolio/resume`
+
+Reglas de protección:
+
+- no opera sin edge neto tras costos
+- stop / take-profit automáticos
+- máximo de posiciones abiertas
+- kill-switch por pérdida diaria
+
+> No garantiza ganancias. Live en BTG requiere API/partner oficial.
+
 ## Roadmap
 
 - [x] MVP análisis + predicción + risk filter
 - [x] CLI + API + journal
 - [x] Stub BTG Chile
-- [ ] Paper portfolio mark-to-market
+- [x] Autopilot paper + portfolio + kill-switch
 - [ ] Backtest walk-forward con costos reales
 - [ ] Conector oficial BTG / Finanzas Abiertas
-- [ ] Semi-auto con aprobación humana
+- [ ] Semi-auto / live con aprobación
 - [ ] Modelos ML entrenados (además del scoring factorial)
 
 ## Nota regulatoria (Chile)

@@ -79,3 +79,43 @@ def journal(limit: int = Query(default=50, ge=1, le=500)) -> dict:
     settings = get_settings()
     store = JournalStore(settings.data_dir / "journal.json")
     return {"entries": store.list_entries(limit=limit)}
+
+
+@app.post("/autopilot/run")
+def autopilot_run(top_n: int = Query(default=8, ge=1, le=30)) -> dict:
+    """Ejecuta un ciclo de inversión automática en PAPER."""
+    from advisor.execution.autopilot import Autopilot
+
+    result = Autopilot(mode="paper").run_once(top_n=top_n)
+    return {
+        "ts": result.ts,
+        "message": result.message,
+        "actions": result.actions,
+        "portfolio": result.portfolio,
+        "market": result.market,
+        "disclaimer": (
+            "Autopilot paper: busca expectancy neta positiva con stops. "
+            "No garantiza ganancias. Live BTG requiere API oficial."
+        ),
+    }
+
+
+@app.get("/portfolio")
+def portfolio() -> dict:
+    from advisor.execution.paper_broker import PaperBroker
+
+    return PaperBroker(get_settings()).status()
+
+
+@app.post("/portfolio/halt")
+def portfolio_halt(reason: str = Query(default="manual_stop")) -> dict:
+    from advisor.execution.paper_broker import PaperBroker
+
+    return PaperBroker(get_settings()).halt(reason)
+
+
+@app.post("/portfolio/resume")
+def portfolio_resume() -> dict:
+    from advisor.execution.paper_broker import PaperBroker
+
+    return PaperBroker(get_settings()).resume()

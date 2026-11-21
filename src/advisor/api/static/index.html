@@ -106,11 +106,18 @@
         <option value="8" selected>Top 8</option>
         <option value="12">Top 12</option>
       </select>
-      <button id="runBtn" onclick="runAnalyze()">Analizar ahora</button>
+      <button id="runBtn" onclick="runAnalyze()">Analizar</button>
+      <button id="autoBtn" class="secondary" onclick="runAutopilot()">Auto invertir (paper)</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="secondary" onclick="loadPortfolio()">Ver portafolio</button>
+      <button class="secondary" onclick="haltBot()">Kill-switch</button>
+      <button class="secondary" onclick="resumeBot()">Reanudar</button>
     </div>
   </div>
 
-  <div id="status" class="msg">Toca “Analizar ahora” para escanear el mercado Chile.</div>
+  <div id="status" class="msg">Autopilot paper: compra solo si hay edge neto estimado tras costos. No garantiza ganancias.</div>
+  <div id="portfolio"></div>
   <div id="market"></div>
   <div id="list"></div>
   <div class="footer">
@@ -214,6 +221,66 @@
         alert(err.message || String(err));
       }
     }
+
+    function renderPortfolio(p) {
+      document.getElementById('portfolio').innerHTML = `
+        <div class="card">
+          <div class="ticker">Portafolio paper</div>
+          <div class="grid">
+            <div class="stat"><div class="k">Equity</div><div class="v">${money(p.equity)}</div></div>
+            <div class="stat"><div class="k">Cash</div><div class="v">${money(p.cash)}</div></div>
+            <div class="stat"><div class="k">PnL total</div><div class="v">${money(p.total_pnl)}</div></div>
+            <div class="stat"><div class="k">PnL diario</div><div class="v">${money(p.daily_pnl)}</div></div>
+            <div class="stat"><div class="k">Posiciones</div><div class="v">${p.open_positions}</div></div>
+            <div class="stat"><div class="k">Estado</div><div class="v">${p.halted ? 'DETENIDO' : 'ACTIVO'}</div></div>
+          </div>
+          ${p.halt_reason ? `<div class="meta">Halt: ${p.halt_reason}</div>` : ''}
+        </div>`;
+    }
+
+    async function runAutopilot() {
+      const btn = document.getElementById('autoBtn');
+      const topN = document.getElementById('topN').value;
+      btn.disabled = true;
+      document.getElementById('status').className = 'msg';
+      document.getElementById('status').textContent = 'Autopilot ejecutando ciclo paper…';
+      try {
+        const res = await fetch(`/autopilot/run?top_n=${topN}`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error autopilot');
+        document.getElementById('status').className = 'msg ' + ((data.actions || []).some(a => a.ok) ? 'ok' : 'warn');
+        document.getElementById('status').textContent = data.message;
+        renderPortfolio(data.portfolio);
+        await runAnalyze();
+      } catch (err) {
+        document.getElementById('status').className = 'msg warn';
+        document.getElementById('status').textContent = err.message || String(err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadPortfolio() {
+      const res = await fetch('/portfolio');
+      const data = await res.json();
+      renderPortfolio(data);
+    }
+
+    async function haltBot() {
+      const res = await fetch('/portfolio/halt?reason=manual_iphone', { method: 'POST' });
+      renderPortfolio(await res.json());
+      document.getElementById('status').className = 'msg warn';
+      document.getElementById('status').textContent = 'Kill-switch activado. Autopilot detenido.';
+    }
+
+    async function resumeBot() {
+      const res = await fetch('/portfolio/resume', { method: 'POST' });
+      renderPortfolio(await res.json());
+      document.getElementById('status').className = 'msg ok';
+      document.getElementById('status').textContent = 'Autopilot reanudado.';
+    }
+
+    loadPortfolio();
   </script>
 </body>
 </html>
