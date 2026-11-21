@@ -1,0 +1,27 @@
+{
+  "market": "CL",
+  "exchange": "BCS",
+  "currency": "CLP",
+  "benchmark": "CHILE_PROXY",
+  "symbols": [
+    {"ticker": "CHILE.SN", "name": "Banco de Chile", "sector": "Financials"},
+    {"ticker": "BSANTANDER.SN", "name": "Banco Santander Chile", "sector": "Financials"},
+    {"ticker": "BCI.SN", "name": "BCI", "sector": "Financials"},
+    {"ticker": "ITAUCL.SN", "name": "Itaú Corpbanca", "sector": "Financials"},
+    {"ticker": "SQM-B.SN", "name": "SQM-B", "sector": "Materials"},
+    {"ticker": "CENCOSUD.SN", "name": "Cencosud", "sector": "Consumer"},
+    {"ticker": "FALABELLA.SN", "name": "Falabella", "sector": "Consumer"},
+    {"ticker": "COPEC.SN", "name": "Copec", "sector": "Energy"},
+    {"ticker": "ENELAM.SN", "name": "Enel Américas", "sector": "Utilities"},
+    {"ticker": "ENELCHILE.SN", "name": "Enel Chile", "sector": "Utilities"},
+    {"ticker": "CMPC.SN", "name": "CMPC", "sector": "Materials"},
+    {"ticker": "CAP.SN", "name": "CAP", "sector": "Materials"},
+    {"ticker": "LTM.SN", "name": "LATAM Airlines", "sector": "Industrials"},
+    {"ticker": "CCU.SN", "name": "CCU", "sector": "Consumer"},
+    {"ticker": "AGUAS-A.SN", "name": "Aguas Andinas", "sector": "Utilities"},
+    {"ticker": "PARAUCO.SN", "name": "Parque Arauco", "sector": "RealEstate"},
+    {"ticker": "MALLPLAZA.SN", "name": "Mallplaza", "sector": "RealEstate"},
+    {"ticker": "ENTEL.SN", "name": "Entel", "sector": "Telecom"},
+    {"ticker": "VAPORES.SN", "name": "Compañía Sud Americana de Vapores", "sector": "Industrials"}
+  ]
+}
