@@ -24,6 +24,8 @@ def score_symbol(
     news_factor: float = 0.0,
     news_weight: float = 0.18,
     news_urgency: float = 0.0,
+    earnings_blackout: bool = False,
+    days_to_earnings: float | None = None,
 ) -> Prediction | None:
     row = latest_feature_row(history, benchmark_df=benchmark_history)
     if row is None:
@@ -89,6 +91,12 @@ def score_symbol(
     score += nw * nf
     if news_urgency >= 0.55 and nf < 0:
         score -= 0.08 * news_urgency  # shock negativo: más cautela
+
+    # Event risk: earnings window → menos score / confianza
+    if earnings_blackout:
+        score -= 0.22
+    elif days_to_earnings is not None and 0 <= days_to_earnings <= 5:
+        score -= 0.06 * (1.0 - days_to_earnings / 5.0)
 
     # Penalizaciones estructurales (anti-overfit / anti-chase)
     if abs(zscore) > 2.0:
@@ -187,6 +195,10 @@ def score_symbol(
         "news_factor": float(nf),
         "news_weight": float(nw),
         "news_urgency": float(news_urgency),
+        "earnings_blackout": 1.0 if earnings_blackout else 0.0,
+        "days_to_earnings": float(days_to_earnings)
+        if days_to_earnings is not None and np.isfinite(days_to_earnings)
+        else -999.0,
         **{f"w_{k}": float(v) for k, v in sleeve_w.items()},
         **sleeves,
     }
@@ -200,6 +212,10 @@ def score_symbol(
         risks.append(f"Noticias adversas para el activo/sector ({nf:+.2f}).")
     if news_urgency >= 0.5:
         risks.append("Alta urgencia mediática: mayor incertidumbre de corto plazo.")
+    if earnings_blackout:
+        risks.append("Ventana de earnings: event risk elevado (blackout).")
+    elif days_to_earnings is not None and 0 <= days_to_earnings <= 5:
+        risks.append(f"Earnings en ~{days_to_earnings:.1f} días.")
 
     if sleeves["sleeve_alpha"] > 0.35:
         reasons.append("Sleeve alpha idiosincrático dominante.")

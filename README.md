@@ -45,6 +45,9 @@ advisor backtest --lookback 756 --train 252 --step 10
 # Pulso de noticias mundiales (afecta régimen + scores)
 advisor news
 
+# Calendario earnings + blackout
+advisor earnings
+
 # Salida JSON
 advisor json --top 5
 
@@ -131,6 +134,7 @@ meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.m
 - [x] Backtest walk-forward con costos reales (`advisor backtest`)
 - [x] v2.1: partial TP, time-stop, diversificación sectorial
 - [x] Factor de noticias mundiales (RSS + Yahoo) en predicción/régimen
+- [x] v3: sentimiento semántico TF-IDF + NewsAPI opcional + earnings blackout
 
 - [ ] Conector oficial BTG / Finanzas Abiertas
 - [ ] Semi-auto / live con aprobación

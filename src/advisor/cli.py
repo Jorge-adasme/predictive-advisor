@@ -230,6 +230,34 @@ def resume(mode: str = typer.Option("alpaca", help="alpaca | paper")) -> None:
     console.print_json(json.dumps(build_broker(get_settings(), mode).resume(), default=str))
 
 
+@app.command("earnings")
+def earnings_cmd(refresh: bool = typer.Option(False, help="Ignorar cache")) -> None:
+    """Calendario de earnings + ventana de blackout."""
+    from advisor.events.earnings import EarningsCalendar
+
+    settings = get_settings()
+    symbols = AdvisoryPipeline(settings).market_data.load_universe()
+    snap = EarningsCalendar(settings).snapshot(
+        [s.ticker for s in symbols], use_cache=not refresh
+    )
+    rows = [v.to_dict() for v in snap.values()]
+    rows = sorted(
+        rows,
+        key=lambda r: (
+            999 if r["days_to_earnings"] is None else r["days_to_earnings"]
+        ),
+    )
+    console.print(
+        f"[bold]Earnings[/bold] blackout −{settings.earnings_blackout_before}d / "
+        f"+{settings.earnings_blackout_after}d"
+    )
+    for r in rows:
+        flag = "[red]BLACKOUT[/red]" if r["in_blackout"] else "[green]ok[/green]"
+        dte = r["days_to_earnings"]
+        dte_s = "n/a" if dte is None else f"{dte:+.1f}d"
+        console.print(f"  {r['ticker']:<6} {flag}  dte={dte_s}  {r.get('blackout_reason','')}")
+
+
 @app.command("news")
 def news_cmd(refresh: bool = typer.Option(False, help="Ignorar cache")) -> None:
     """Pulso de noticias mundiales que afectan acciones/bolsa."""

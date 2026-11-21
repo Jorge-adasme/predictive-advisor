@@ -41,7 +41,15 @@ class Settings(BaseSettings):
     # Noticias mundiales
     news_enabled: bool = True
     news_cache_ttl_sec: int = Field(default=1200, ge=60, le=7200)
-    news_weight: float = Field(default=0.18, ge=0.0, le=0.5)
+    news_weight: float = Field(default=0.20, ge=0.0, le=0.5)
+    news_semantic_weight: float = Field(default=0.55, ge=0.0, le=1.0)
+    newsapi_key: str = ""  # opcional https://newsapi.org
+
+    # Earnings blackout
+    earnings_enabled: bool = True
+    earnings_blackout_before: int = Field(default=2, ge=0, le=10)
+    earnings_blackout_after: int = Field(default=1, ge=0, le=5)
+    earnings_cache_ttl_sec: int = Field(default=43200, ge=3600, le=86400)
 
     # Alpaca default: commission-free equities + slippage model
     commission_rate: float = Field(default=0.0, ge=0.0, le=0.05)

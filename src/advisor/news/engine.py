@@ -3,18 +3,14 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from advisor.config import Settings, get_settings
 from advisor.models import SymbolInfo
 from advisor.news.feeds import RawHeadline, fetch_rss_headlines, fetch_yahoo_ticker_news
-from advisor.news.sentiment import (
-    detect_sectors,
-    detect_tickers,
-    score_text,
-    urgency_score,
-)
+from advisor.news.newsapi_client import fetch_newsapi_headlines
+from advisor.news.semantic import blend_sentiment, headline_urgency
+from advisor.news.sentiment import detect_sectors, detect_tickers
 
 
 @dataclass
@@ -29,6 +25,8 @@ class NewsPulse:
     notes: list[str] = field(default_factory=list)
     sources_ok: int = 0
     n_headlines: int = 0
+    semantic_enabled: bool = True
+    newsapi_enabled: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -37,7 +35,6 @@ class NewsPulse:
         t = float(self.by_ticker.get(ticker, 0.0))
         s = float(self.by_sector.get(sector, 0.0))
         m = float(self.market_sentiment)
-        # Ticker > sector > market
         return float(max(-1.0, min(1.0, 0.50 * t + 0.30 * s + 0.20 * m)))
 
 
@@ -78,49 +75,64 @@ class NewsEngine:
         if use_cache:
             cached = self._read_cache()
             if cached:
-                return NewsPulse(**cached)
+                # backward compatible defaults
+                cached.setdefault("semantic_enabled", True)
+                cached.setdefault("newsapi_enabled", False)
+                return NewsPulse(**{
+                    k: cached[k]
+                    for k in NewsPulse.__dataclass_fields__
+                    if k in cached
+                })
 
         symbols = symbols or []
         universe = [s.ticker for s in symbols]
         sector_of = {s.ticker: s.sector for s in symbols}
+        semantic_w = float(getattr(self.settings, "news_semantic_weight", 0.55))
+        newsapi_key = str(getattr(self.settings, "newsapi_key", "") or "")
 
         headlines = fetch_rss_headlines()
         sources = {h.source for h in headlines}
+        newsapi_on = False
+        if newsapi_key:
+            api_items = fetch_newsapi_headlines(newsapi_key)
+            if api_items:
+                headlines.extend(api_items)
+                sources.add("NewsAPI")
+                newsapi_on = True
         if include_yahoo and universe:
             headlines.extend(fetch_yahoo_ticker_news(universe))
 
         if not headlines:
-            empty = NewsPulse(
+            return NewsPulse(
                 as_of=datetime.now(timezone.utc).isoformat(),
                 market_sentiment=0.0,
                 market_urgency=0.0,
                 regime_bias=0.0,
                 notes=["Sin noticias disponibles (feeds caídos o sin red)."],
+                semantic_enabled=True,
+                newsapi_enabled=bool(newsapi_key),
             )
-            return empty
 
-        # Recencia: últimas ~36h pesan más
         now = datetime.now(timezone.utc)
-        scored: list[tuple[float, float, RawHeadline, float]] = []
+        scored: list[tuple[float, float, RawHeadline, float, float, float]] = []
         sector_acc: dict[str, list[float]] = {}
         ticker_acc: dict[str, list[float]] = {}
 
         for h in headlines:
             text = f"{h.title}. {h.summary}"
-            sent = score_text(text)
-            urg = urgency_score(text)
+            sent, lex, sem = blend_sentiment(text, semantic_weight=semantic_w)
+            urg = headline_urgency(text)
             age_h = 24.0
             if h.published is not None:
                 age_h = max((now - h.published).total_seconds() / 3600.0, 0.0)
             recency = float(max(0.25, 1.0 - age_h / 48.0))
             weight = recency * (1.0 + 0.5 * urg)
-            scored.append((sent, weight, h, urg))
+            scored.append((sent, weight, h, urg, lex, sem))
 
             for sec in detect_sectors(text):
                 sector_acc.setdefault(sec, []).append(sent * weight)
             for tk in detect_tickers(text, universe=universe or None):
                 ticker_acc.setdefault(tk, []).append(sent * weight)
-                # propaga al sector del universo
                 sec = sector_of.get(tk)
                 if sec:
                     sector_acc.setdefault(sec, []).append(sent * weight * 0.5)
@@ -128,15 +140,13 @@ class NewsEngine:
         def _avg(xs: list[float]) -> float:
             return float(sum(xs) / len(xs)) if xs else 0.0
 
-        wsum = sum(w for _, w, _, _ in scored) or 1.0
+        wsum = sum(w for _, w, _, _, _, _ in scored) or 1.0
         market_sentiment = float(
-            max(-1.0, min(1.0, sum(s * w for s, w, _, _ in scored) / wsum))
+            max(-1.0, min(1.0, sum(s * w for s, w, _, _, _, _ in scored) / wsum))
         )
         market_urgency = float(
-            max(0.0, min(1.0, sum(u * w for _, w, _, u in scored) / wsum))
+            max(0.0, min(1.0, sum(u * w for _, w, _, u, _, _ in scored) / wsum))
         )
-
-        # Sesgo de régimen: sentimiento negativo + urgencia alta ⇒ risk_off
         regime_bias = float(
             max(-1.2, min(1.2, market_sentiment * 0.85 - market_urgency * 0.55))
         )
@@ -144,22 +154,24 @@ class NewsEngine:
         by_sector = {k: float(max(-1, min(1, _avg(v)))) for k, v in sector_acc.items()}
         by_ticker = {k: float(max(-1, min(1, _avg(v)))) for k, v in ticker_acc.items()}
 
-        # Top headlines por |sentimiento| * weight
         ranked = sorted(scored, key=lambda x: abs(x[0]) * x[1], reverse=True)
         top = []
-        for sent, weight, h, urg in ranked[:12]:
+        for sent, weight, h, urg, lex, sem in ranked[:12]:
             top.append(
                 {
                     "title": h.title,
                     "source": h.source,
                     "url": h.url,
                     "sentiment": round(sent, 3),
+                    "lexicon": round(lex, 3),
+                    "semantic": round(sem, 3),
                     "urgency": round(urg, 3),
                     "published": h.published.isoformat() if h.published else None,
                 }
             )
 
         notes: list[str] = []
+        notes.append("Scoring v3: lexicón + TF-IDF semántico" + (" + NewsAPI" if newsapi_on else ""))
         if market_sentiment <= -0.35:
             notes.append(f"Noticias netamente negativas (sent={market_sentiment:.2f}).")
         elif market_sentiment >= 0.35:
@@ -185,6 +197,8 @@ class NewsEngine:
             notes=notes,
             sources_ok=len(sources),
             n_headlines=len(headlines),
+            semantic_enabled=True,
+            newsapi_enabled=newsapi_on,
         )
         self._write_cache(pulse)
         return pulse

@@ -6,6 +6,7 @@ from advisor.adapters.yahoo import YahooMarketDataAdapter
 from advisor.analysis.regime import detect_regime
 from advisor.config import Settings, get_settings
 from advisor.models import Action, Recommendation
+from advisor.events.earnings import EarningsCalendar
 from advisor.news.engine import NewsEngine
 from advisor.prediction.ranking import apply_cross_sectional_ranks
 from advisor.prediction.scoring import score_symbol
@@ -61,6 +62,18 @@ class AdvisoryPipeline:
                 news_pulse = None
                 news_dict = None
 
+        earnings_map = {}
+        earnings_dict = None
+        if self.settings.earnings_enabled:
+            try:
+                earnings_map = EarningsCalendar(self.settings).snapshot(
+                    [s.ticker for s in symbols]
+                )
+                earnings_dict = {k: v.to_dict() for k, v in earnings_map.items()}
+            except Exception:
+                earnings_map = {}
+                earnings_dict = None
+
         market = detect_regime(
             benchmark_df,
             self.market_data.benchmark,
@@ -77,6 +90,7 @@ class AdvisoryPipeline:
             if news_pulse is not None:
                 nf = news_pulse.factor_for(symbol.ticker, symbol.sector)
                 nu = news_pulse.market_urgency
+            earn = earnings_map.get(symbol.ticker)
             pred = score_symbol(
                 symbol=symbol,
                 history=hist,
@@ -86,6 +100,8 @@ class AdvisoryPipeline:
                 news_factor=nf,
                 news_weight=self.settings.news_weight,
                 news_urgency=nu,
+                earnings_blackout=bool(earn.in_blackout) if earn else False,
+                days_to_earnings=earn.days_to_earnings if earn else None,
             )
             if pred is not None:
                 predictions.append(pred)
@@ -140,6 +156,7 @@ class AdvisoryPipeline:
             },
             "btg_status": self.btg.status().__dict__,
             "news": news_dict,
+            "earnings": earnings_dict,
             "message": message,
             "error": None,
         }

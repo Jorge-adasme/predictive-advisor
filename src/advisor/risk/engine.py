@@ -94,6 +94,14 @@ def build_trade_plan(
 
     news_f = float(prediction.factors.get("news_factor", 0.0))
     news_u = float(prediction.factors.get("news_urgency", 0.0) or market.news_urgency)
+    earnings_bo = float(prediction.factors.get("earnings_blackout", 0.0)) >= 1.0
+
+    if earnings_bo and settings.earnings_enabled:
+        return _avoid_plan(
+            prediction,
+            edge_net,
+            "Blackout de earnings: no abrir riesgo en ventana de resultados.",
+        )
 
     # Shock de noticias negativo: no abrir riesgo nuevo
     if news_f <= -0.55 and news_u >= 0.45:

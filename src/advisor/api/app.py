@@ -233,6 +233,25 @@ def alpaca_status() -> dict:
     return AlpacaBroker(settings).status()
 
 
+@app.get("/earnings")
+def earnings_calendar(refresh: bool = Query(default=False)) -> dict:
+    from advisor.events.earnings import EarningsCalendar
+
+    settings = get_settings()
+    symbols = AdvisoryPipeline(settings).market_data.load_universe()
+    try:
+        snap = EarningsCalendar(settings).snapshot(
+            [s.ticker for s in symbols], use_cache=not refresh
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "blackout_before": settings.earnings_blackout_before,
+        "blackout_after": settings.earnings_blackout_after,
+        "tickers": {k: v.to_dict() for k, v in snap.items()},
+    }
+
+
 @app.get("/news")
 def news_pulse(refresh: bool = Query(default=False)) -> dict:
     """Noticias mundiales + sentimiento para régimen y scoring."""
