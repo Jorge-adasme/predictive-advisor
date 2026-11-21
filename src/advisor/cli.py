@@ -134,7 +134,22 @@ def journal(limit: int = typer.Option(20)) -> None:
 @app.command("btg-status")
 def btg_status() -> None:
     status = AdvisoryPipeline().btg.status()
-    console.print_json(json.dumps(status.__dict__, default=str))
+    from advisor.execution.live_btg import BTGLiveExecutor
+
+    live = BTGLiveExecutor(get_settings()).gate()
+    console.print_json(
+        json.dumps(
+            {
+                "adapter": status.__dict__,
+                "live_gate": {
+                    "enabled": live.enabled,
+                    "reason": live.reason,
+                    "next_steps": live.next_steps,
+                },
+            },
+            default=str,
+        )
+    )
 
 
 @app.command("autopilot")

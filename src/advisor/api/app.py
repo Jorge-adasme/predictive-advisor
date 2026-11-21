@@ -119,3 +119,37 @@ def portfolio_resume() -> dict:
     from advisor.execution.paper_broker import PaperBroker
 
     return PaperBroker(get_settings()).resume()
+
+
+@app.get("/live/btg/status")
+def live_btg_status() -> dict:
+    from advisor.execution.live_btg import BTGLiveExecutor
+
+    gate = BTGLiveExecutor(get_settings()).gate()
+    return {
+        "enabled": gate.enabled,
+        "reason": gate.reason,
+        "next_steps": gate.next_steps,
+    }
+
+
+@app.post("/live/btg/place")
+def live_btg_place(ticker: str = Query(...)) -> dict:
+    """Intenta orden live; si no hay API oficial, devuelve bloqueo + draft."""
+    from advisor.execution.live_btg import BTGLiveExecutor
+
+    settings = get_settings()
+    pipeline = AdvisoryPipeline(settings)
+    result = pipeline.analyze(top_n=max(settings.top_n, 15))
+    match = next(
+        (
+            item
+            for item in result.get("recommendations", [])
+            if item["prediction"]["ticker"].upper() == ticker.upper()
+        ),
+        None,
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail=f"Sin plan para {ticker}")
+
+    return BTGLiveExecutor(settings).place_order(match["plan"])

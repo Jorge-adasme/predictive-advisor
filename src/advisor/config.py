@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     data_dir: Path = ROOT_DIR / "data"
     universe_path: Path = ROOT_DIR / "configs" / "universe_chile.json"
 
+    # Live BTG (oficial). Por defecto OFF hasta tener API/DMA.
+    btg_live_enabled: bool = False
+    btg_account_id: str = ""
+    btg_live_token: str = ""
+
     @property
     def round_trip_cost_pct(self) -> float:
         """Costo estimado ida y vuelta: comisión+IVA por lado + slippage."""

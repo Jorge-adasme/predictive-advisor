@@ -113,6 +113,7 @@
       <button class="secondary" onclick="loadPortfolio()">Ver portafolio</button>
       <button class="secondary" onclick="haltBot()">Kill-switch</button>
       <button class="secondary" onclick="resumeBot()">Reanudar</button>
+      <button class="secondary" onclick="liveStatus()">Estado Live BTG</button>
     </div>
   </div>
 
@@ -280,7 +281,16 @@
       document.getElementById('status').textContent = 'Autopilot reanudado.';
     }
 
+    async function liveStatus() {
+      const res = await fetch('/live/btg/status');
+      const data = await res.json();
+      document.getElementById('status').className = 'msg warn';
+      document.getElementById('status').textContent =
+        `${data.reason} Próximos pasos: ${(data.next_steps || []).join(' → ')}`;
+    }
+
     loadPortfolio();
+    liveStatus();
   </script>
 </body>
 </html>
