@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     max_positions: int = Field(default=4, ge=1, le=10)
     max_per_sector: int = Field(default=1, ge=1, le=3)
 
+    # Noticias mundiales
+    news_enabled: bool = True
+    news_cache_ttl_sec: int = Field(default=1200, ge=60, le=7200)
+    news_weight: float = Field(default=0.18, ge=0.0, le=0.5)
+
     # Alpaca default: commission-free equities + slippage model
     commission_rate: float = Field(default=0.0, ge=0.0, le=0.05)
     vat_rate: float = Field(default=0.0, ge=0.0, le=0.4)

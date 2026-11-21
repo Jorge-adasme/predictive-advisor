@@ -21,6 +21,9 @@ def score_symbol(
     regime: Regime,
     horizon_days: int,
     benchmark_history: pd.DataFrame | None = None,
+    news_factor: float = 0.0,
+    news_weight: float = 0.18,
+    news_urgency: float = 0.0,
 ) -> Prediction | None:
     row = latest_feature_row(history, benchmark_df=benchmark_history)
     if row is None:
@@ -79,6 +82,13 @@ def score_symbol(
         dist_52w=dist_52w,
         skew=skew,
     )
+
+    # Factor de noticias mundiales / ticker / sector
+    nf = float(np.clip(news_factor, -1.0, 1.0))
+    nw = float(np.clip(news_weight, 0.0, 0.5))
+    score += nw * nf
+    if news_urgency >= 0.55 and nf < 0:
+        score -= 0.08 * news_urgency  # shock negativo: más cautela
 
     # Penalizaciones estructurales (anti-overfit / anti-chase)
     if abs(zscore) > 2.0:
@@ -174,12 +184,22 @@ def score_symbol(
         "ic_spearman": float(ic) if np.isfinite(ic) else 0.0,
         "meta_label_prob": float(meta) if np.isfinite(meta) else 0.0,
         "er_shrunk": float(er_shrunk) if np.isfinite(er_shrunk) else 0.0,
+        "news_factor": float(nf),
+        "news_weight": float(nw),
+        "news_urgency": float(news_urgency),
         **{f"w_{k}": float(v) for k, v in sleeve_w.items()},
         **sleeves,
     }
 
     reasons: list[str] = []
     risks: list[str] = []
+
+    if nf >= 0.35:
+        reasons.append(f"Noticias favorables para el activo/sector ({nf:+.2f}).")
+    elif nf <= -0.35:
+        risks.append(f"Noticias adversas para el activo/sector ({nf:+.2f}).")
+    if news_urgency >= 0.5:
+        risks.append("Alta urgencia mediática: mayor incertidumbre de corto plazo.")
 
     if sleeves["sleeve_alpha"] > 0.35:
         reasons.append("Sleeve alpha idiosincrático dominante.")

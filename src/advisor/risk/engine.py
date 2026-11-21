@@ -92,10 +92,32 @@ def build_trade_plan(
         raw_pct *= 1.08
     position_pct = float(min(settings.max_position_pct, max(0.01, raw_pct)))
 
+    news_f = float(prediction.factors.get("news_factor", 0.0))
+    news_u = float(prediction.factors.get("news_urgency", 0.0) or market.news_urgency)
+
+    # Shock de noticias negativo: no abrir riesgo nuevo
+    if news_f <= -0.55 and news_u >= 0.45:
+        return _avoid_plan(
+            prediction,
+            edge_net,
+            "Noticias adversas de alto impacto: se evita abrir riesgo.",
+        )
+    if market.news_sentiment <= -0.55 and market.news_urgency >= 0.55:
+        return _avoid_plan(
+            prediction,
+            edge_net,
+            "Clima de noticias global hostil: capital en defensiva.",
+        )
+
     # Umbral BUY: un poco más permisivo en risk_on prolongado (menos cash drag)
     min_score = 0.28 if market.regime == Regime.RISK_ON else 0.32
     min_prob = 0.54 if market.regime == Regime.RISK_ON else 0.55
     min_meta = 0.52 if market.regime == Regime.RISK_ON else 0.55
+    if news_f >= 0.4:
+        min_score -= 0.03
+    if news_f <= -0.35:
+        min_score += 0.05
+        min_prob += 0.02
     buy = (
         prediction.score >= min_score
         and prediction.probability_up >= min_prob

@@ -233,6 +233,20 @@ def alpaca_status() -> dict:
     return AlpacaBroker(settings).status()
 
 
+@app.get("/news")
+def news_pulse(refresh: bool = Query(default=False)) -> dict:
+    """Noticias mundiales + sentimiento para régimen y scoring."""
+    from advisor.news.engine import NewsEngine
+
+    settings = get_settings()
+    symbols = AdvisoryPipeline(settings).market_data.load_universe()
+    try:
+        pulse = NewsEngine(settings).pulse(symbols, use_cache=not refresh)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return pulse.to_dict()
+
+
 @app.get("/backtest/walk-forward")
 def backtest_walk_forward(
     lookback: int = Query(default=756, ge=250, le=2000),

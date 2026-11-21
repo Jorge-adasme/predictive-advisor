@@ -37,6 +37,17 @@ def analyze(top: int = typer.Option(8, help="Cantidad de recomendaciones")) -> N
     for note in market.get("notes", []):
         console.print(f"- {note}")
 
+    if market.get("news_sentiment") is not None:
+        console.print(
+            f"\n[bold]Noticias[/bold] sent={market.get('news_sentiment', 0):+.2f} | "
+            f"urgencia={market.get('news_urgency', 0):.2f} | "
+            f"bias régimen={market.get('news_regime_bias', 0):+.2f}"
+        )
+        for h in (market.get("news_headlines") or [])[:5]:
+            console.print(
+                f"  • [{h.get('sentiment', 0):+.2f}] {h.get('title', '')[:110]}"
+            )
+
     if result.get("message"):
         style = "green" if result.get("actionable") else "yellow"
         console.print(f"\n[{style}]{result['message']}[/{style}]")
@@ -217,6 +228,27 @@ def resume(mode: str = typer.Option("alpaca", help="alpaca | paper")) -> None:
     from advisor.execution.autopilot import build_broker
 
     console.print_json(json.dumps(build_broker(get_settings(), mode).resume(), default=str))
+
+
+@app.command("news")
+def news_cmd(refresh: bool = typer.Option(False, help="Ignorar cache")) -> None:
+    """Pulso de noticias mundiales que afectan acciones/bolsa."""
+    from advisor.news.engine import NewsEngine
+
+    settings = get_settings()
+    symbols = AdvisoryPipeline(settings).market_data.load_universe()
+    pulse = NewsEngine(settings).pulse(symbols, use_cache=not refresh)
+    console.print(
+        f"[bold]News pulse[/bold] sent={pulse.market_sentiment:+.2f} "
+        f"urg={pulse.market_urgency:.2f} bias={pulse.regime_bias:+.2f} "
+        f"({pulse.n_headlines} headlines / {pulse.sources_ok} sources)"
+    )
+    for n in pulse.notes:
+        console.print(f"- {n}")
+    for h in pulse.headlines[:10]:
+        console.print(f"  • [{h['sentiment']:+.2f}] {h['title'][:120]}")
+    if pulse.by_sector:
+        console.print_json(json.dumps({"by_sector": pulse.by_sector, "by_ticker": pulse.by_ticker}, default=str))
 
 
 @app.command("backtest")

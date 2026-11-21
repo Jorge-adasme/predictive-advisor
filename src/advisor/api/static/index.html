@@ -284,6 +284,9 @@
   <div class="section-title">Movimientos <span>últimos</span></div>
   <div class="card" id="movesCard"><div class="empty">Cuando el bot opere, verás aquí cada movimiento.</div></div>
 
+  <div class="section-title">Noticias mundiales <span id="newsMeta">—</span></div>
+  <div class="card" id="newsCard"><div class="empty">Se cargan al analizar el mercado.</div></div>
+
   <div class="section-title">Ideas de hoy <span id="ideasMeta">—</span></div>
   <div class="card" id="ideasCard"><div class="empty">Toca “Analizar” para ver oportunidades.</div></div>
 
@@ -401,10 +404,33 @@
       }
     }
 
+    function renderNews(result) {
+      const market = result.market || {};
+      const news = result.news || {};
+      const sent = Number(market.news_sentiment ?? news.market_sentiment ?? 0);
+      const urg = Number(market.news_urgency ?? news.market_urgency ?? 0);
+      const headlines = market.news_headlines || news.headlines || [];
+      document.getElementById('newsMeta').textContent =
+        `sent ${sent >= 0 ? '+' : ''}${sent.toFixed(2)} · urg ${urg.toFixed(2)}`;
+      const card = document.getElementById('newsCard');
+      if (!headlines.length) {
+        card.innerHTML = `<div class="empty">${(news.notes || ['Sin titulares por ahora.'])[0]}</div>`;
+        return;
+      }
+      card.innerHTML = `
+        <div class="meta">Las predicciones incorporan este pulso de noticias (BBC/CNBC/Fed/Yahoo).</div>
+        <div class="mini-grid">
+          <div class="mini"><div class="k">Sentimiento</div><div class="v" style="color:${sent>=0?'var(--green)':'var(--red)'}">${sent>=0?'+':''}${sent.toFixed(2)}</div></div>
+          <div class="mini"><div class="k">Urgencia</div><div class="v">${urg.toFixed(2)}</div></div>
+        </div>
+        <ul>${headlines.slice(0,6).map(h => `<li><strong>[${Number(h.sentiment||0)>=0?'+':''}${Number(h.sentiment||0).toFixed(2)}]</strong> ${h.title}</li>`).join('')}</ul>`;
+    }
+
     function renderIdeas(result) {
       const market = result.market || {};
       document.getElementById('marketState').textContent = market.regime || '—';
       document.getElementById('ideasMeta').textContent = result.message ? 'actualizado' : '—';
+      renderNews(result);
       const list = result.recommendations || [];
       const card = document.getElementById('ideasCard');
       if (result.error) {
@@ -420,12 +446,13 @@
         ${list.map(r => {
           const p = r.prediction;
           const plan = r.plan;
+          const nf = Number((p.factors || {}).news_factor || 0);
           return `
             <div class="idea">
               <div class="row" style="justify-content:space-between">
                 <div>
                   <div class="ticker">#${r.rank} ${p.ticker}</div>
-                  <div class="meta">${p.name}</div>
+                  <div class="meta">${p.name} · news ${nf>=0?'+':''}${nf.toFixed(2)}</div>
                 </div>
                 <span class="pill ${plan.action}">${plan.action}</span>
               </div>

@@ -34,6 +34,10 @@ class MarketSnapshot(BaseModel):
     benchmark_return_20d: float
     benchmark_volatility_20d: float
     notes: list[str] = Field(default_factory=list)
+    news_sentiment: float = 0.0
+    news_urgency: float = 0.0
+    news_regime_bias: float = 0.0
+    news_headlines: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Prediction(BaseModel):

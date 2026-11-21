@@ -6,6 +6,7 @@ from advisor.adapters.yahoo import YahooMarketDataAdapter
 from advisor.analysis.regime import detect_regime
 from advisor.config import Settings, get_settings
 from advisor.models import Action, Recommendation
+from advisor.news.engine import NewsEngine
 from advisor.prediction.ranking import apply_cross_sectional_ranks
 from advisor.prediction.scoring import score_symbol
 from advisor.risk.engine import build_trade_plan
@@ -50,19 +51,41 @@ class AdvisoryPipeline:
                 "error": "No se pudieron descargar datos de mercado.",
             }
 
-        market = detect_regime(benchmark_df, self.market_data.benchmark)
+        news_pulse = None
+        news_dict = None
+        if self.settings.news_enabled:
+            try:
+                news_pulse = NewsEngine(self.settings).pulse(symbols)
+                news_dict = news_pulse.to_dict()
+            except Exception:
+                news_pulse = None
+                news_dict = None
+
+        market = detect_regime(
+            benchmark_df,
+            self.market_data.benchmark,
+            news=news_dict,
+        )
 
         predictions = []
         for symbol in symbols:
             hist = histories.get(symbol.ticker)
             if hist is None or hist.empty:
                 continue
+            nf = 0.0
+            nu = 0.0
+            if news_pulse is not None:
+                nf = news_pulse.factor_for(symbol.ticker, symbol.sector)
+                nu = news_pulse.market_urgency
             pred = score_symbol(
                 symbol=symbol,
                 history=hist,
                 regime=market.regime,
                 horizon_days=self.settings.horizon_days,
                 benchmark_history=benchmark_df,
+                news_factor=nf,
+                news_weight=self.settings.news_weight,
+                news_urgency=nu,
             )
             if pred is not None:
                 predictions.append(pred)
@@ -116,6 +139,7 @@ class AdvisoryPipeline:
                 "currency": self.settings.base_currency,
             },
             "btg_status": self.btg.status().__dict__,
+            "news": news_dict,
             "message": message,
             "error": None,
         }
