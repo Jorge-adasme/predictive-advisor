@@ -1366,7 +1366,7 @@
     async function runAnalyze(silent) {
       if (!silent) setBanner('Analizando mercado y noticias…', 'info');
       try {
-        const res = await fetch('/analyze?top_n=15');
+        const res = await fetch('/analyze?top_n=30');
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error al analizar');
         renderIdeas(data);
@@ -1420,7 +1420,7 @@
       setBusy(true);
       setBanner('Ejecutando autopilot… buscando solo operaciones con ventaja neta.', 'info');
       try {
-        const res = await fetch(`/autopilot/run?top_n=15&mode=${LIVE_MODE}`, { method: 'POST' });
+        const res = await fetch(`/autopilot/run?top_n=30&mode=${LIVE_MODE}`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error en autopilot');
         setBanner(data.message || 'Autopilot listo', (data.actions || []).some(a => a.ok) ? 'ok' : 'warn');

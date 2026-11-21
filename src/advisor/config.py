@@ -71,7 +71,7 @@ class Settings(BaseSettings):
 
     lookback_days: int = Field(default=420, ge=60, le=2000)
     horizon_days: int = Field(default=10, ge=1, le=60)
-    top_n: int = Field(default=25, ge=1, le=60)
+    top_n: int = Field(default=30, ge=1, le=80)
 
     data_dir: Path = ROOT_DIR / "data"
     universe_path: Path = ROOT_DIR / "configs" / "universe_alpaca_us.json"
