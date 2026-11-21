@@ -1188,6 +1188,23 @@
         }).join('')}</div>`;
     }
 
+    function ideaQuality(r) {
+      const plan = r.plan || {};
+      const p = r.prediction || {};
+      const actionScore = { buy: 3, hold: 2, reduce: 1, avoid: 0 }[plan.action] || 0;
+      return (
+        actionScore * 1e6 +
+        Number(plan.edge_net_pct || 0) * 1e4 +
+        Number(p.score || 0) * 1e2 +
+        Number(p.probability_up || 0)
+      );
+    }
+
+    function sortIdeasBestFirst(list) {
+      return (list || []).slice().sort((a, b) => ideaQuality(b) - ideaQuality(a))
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
+
     function renderIdeas(result) {
       const market = result.market || {};
       // Preferir oportunidades completas; si vienen cortas, completar con ranking
@@ -1199,6 +1216,7 @@
         });
         opps = opps.concat(extra).slice(0, 60);
       }
+      opps = sortIdeasBestFirst(opps);
       const avoids = pickAvoidList(result);
       const ms = document.getElementById('marketState');
       if (ms) ms.textContent = market.regime || '—';
@@ -1231,7 +1249,7 @@
           ? ` · caché ${result.cache_age_sec || 0}s`
           : ' · escaneo universo completo';
         ideasCard.innerHTML = `
-          <div class="meta">${esc(result.message || '')} · mostrando ${opps.length} ideas del universo${cacheNote}</div>
+          <div class="meta">${esc(result.message || '')} · orden: mejor → peor (#1 arriba)${cacheNote}</div>
           ${renderIdeaList(opps, 'Sin oportunidades ahora. Toca Actualizar para rescaneo.', false)}`;
       }
     }

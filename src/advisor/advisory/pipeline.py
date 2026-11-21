@@ -124,12 +124,24 @@ class AdvisoryPipeline:
                 )
             all_recs.append(Recommendation(prediction=pred, plan=plan, market=market, rank=0))
 
-        # Ordena el universo completo por edge/score (sigue buscando en TODOS)
-        all_recs = sorted(
-            all_recs,
-            key=lambda r: (float(r.plan.edge_net_pct), float(r.prediction.score)),
-            reverse=True,
-        )
+        def _quality_key(r: Recommendation) -> tuple:
+            """Mejor → peor: buy > hold > avoid, luego edge, score, probabilidad."""
+            action_rank = {
+                Action.BUY: 3,
+                Action.HOLD: 2,
+                Action.REDUCE: 1,
+                Action.AVOID: 0,
+            }.get(r.plan.action, 0)
+            return (
+                action_rank,
+                float(r.plan.edge_net_pct or 0.0),
+                float(r.prediction.score or 0.0),
+                float(r.prediction.probability_up or 0.0),
+                float(r.prediction.confidence or 0.0),
+            )
+
+        # Ordena el universo completo de la mejor idea a la peor
+        all_recs = sorted(all_recs, key=_quality_key, reverse=True)
 
         opp_limit = max(top_n, int(getattr(self.settings, "opportunity_limit", 50) or 50))
         ranking = []
@@ -142,7 +154,7 @@ class AdvisoryPipeline:
             for r in all_recs
             if r.plan.action == Action.BUY and r.plan.position_pct > 0
         ]
-        actionable = actionable[:opp_limit]
+        actionable = sorted(actionable, key=_quality_key, reverse=True)[:opp_limit]
         for idx, rec in enumerate(actionable, start=1):
             actionable[idx - 1] = rec.model_copy(update={"rank": idx})
 
@@ -173,21 +185,14 @@ class AdvisoryPipeline:
                 seen_opp.add(r.prediction.ticker)
                 if len(opportunities) >= opp_limit:
                     break
-        opportunities = opportunities[:opp_limit]
+        # Reordena siempre de mejor a peor y numera el rank 1..N
+        opportunities = sorted(opportunities, key=_quality_key, reverse=True)[:opp_limit]
         for idx, rec in enumerate(opportunities, start=1):
             opportunities[idx - 1] = rec.model_copy(update={"rank": idx})
 
-        # "No invertir": AVOID primero; si faltan, completa con peores HOLD
+        # "No invertir": peores primero (score/edge más bajos)
         avoid_hard = [r for r in all_recs if r.plan.action == Action.AVOID]
-        avoid_hard = sorted(
-            avoid_hard,
-            key=lambda r: (
-                float(r.prediction.score),
-                float(r.prediction.expected_return),
-                float(r.prediction.factors.get("news_factor", 0.0)),
-                float(r.plan.edge_net_pct),
-            ),
-        )
+        avoid_hard = sorted(avoid_hard, key=_quality_key)  # peor → menos malo
         opp_tickers = {r.prediction.ticker for r in opportunities}
         weak_holds = [
             r
