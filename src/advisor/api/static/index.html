@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
   <meta name="theme-color" content="#f4f7fb" />
   <title>Advisor · Dashboard</title>
   <style>
@@ -23,38 +26,73 @@
       --amber-soft: #fff6e8;
       --shadow: 0 10px 30px rgba(20, 32, 51, 0.06);
       --radius: 22px;
+      --shell: 1180px;
+      --pad-x: 16px;
+      --bottom-bar: 76px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
     }
     * { box-sizing: border-box; }
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
       background:
         radial-gradient(circle at top right, #eaf2ff, transparent 28%),
         radial-gradient(circle at top left, #e9fbf3, transparent 24%),
         var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 18px 16px 96px;
+      min-height: 100dvh;
+      padding:
+        calc(14px + var(--safe-top))
+        max(var(--pad-x), env(safe-area-inset-right, 0px))
+        calc(var(--bottom-bar) + var(--safe-bottom) + 18px)
+        max(var(--pad-x), env(safe-area-inset-left, 0px));
+      overflow-x: hidden;
     }
-    .top {
+    .app {
+      width: 100%;
+      max-width: var(--shell);
+      margin: 0 auto;
+    }
+
+    /* —— Header —— */
+    .topbar {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
+    .topbar-copy { min-width: 0; flex: 1; }
     h1 {
       margin: 0;
-      font-size: 1.55rem;
+      font-size: clamp(1.35rem, 4.2vw, 1.85rem);
       letter-spacing: -0.03em;
+      line-height: 1.15;
     }
-    .hello { color: var(--muted); margin-top: 4px; font-size: 0.95rem; }
+    .hello {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 0.92rem;
+      line-height: 1.35;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
     .badge {
       background: var(--blue-soft);
       color: var(--blue);
       border-radius: 999px;
       padding: 8px 12px;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: 700;
       white-space: nowrap;
     }
@@ -62,20 +100,34 @@
     .badge.danger { background: var(--red-soft); color: var(--red); }
     .badge.ok { background: var(--green-soft); color: var(--green); }
 
+    .desktop-actions {
+      display: none;
+      gap: 8px;
+    }
+
+    /* —— Layout columns (stack on phone) —— */
+    .layout {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .col { min-width: 0; }
+
     .hero {
       background: linear-gradient(145deg, #12325d, #1f6feb 55%, #18a974);
       color: white;
       border-radius: 28px;
-      padding: 20px;
+      padding: 18px;
       box-shadow: var(--shadow);
       margin-bottom: 14px;
     }
-    .hero .label { opacity: 0.85; font-size: 0.9rem; }
+    .hero .label { opacity: 0.85; font-size: 0.88rem; }
     .hero .equity {
-      font-size: 2rem;
+      font-size: clamp(1.7rem, 6vw, 2.35rem);
       font-weight: 800;
       letter-spacing: -0.04em;
       margin: 6px 0 14px;
+      word-break: break-word;
     }
     .hero-grid {
       display: grid;
@@ -87,9 +139,15 @@
       border: 1px solid rgba(255,255,255,0.18);
       border-radius: 18px;
       padding: 12px;
+      min-width: 0;
     }
-    .hero-pill .k { font-size: 0.75rem; opacity: 0.85; }
-    .hero-pill .v { font-size: 1.05rem; font-weight: 750; margin-top: 4px; }
+    .hero-pill .k { font-size: 0.72rem; opacity: 0.85; }
+    .hero-pill .v {
+      font-size: 1.02rem;
+      font-weight: 750;
+      margin-top: 4px;
+      overflow-wrap: anywhere;
+    }
 
     .grid2 {
       display: grid;
@@ -101,18 +159,22 @@
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 16px;
+      padding: 14px;
       box-shadow: var(--shadow);
       margin-bottom: 12px;
     }
     .stat .k { color: var(--muted); font-size: 0.8rem; }
-    .stat .v { font-size: 1.2rem; font-weight: 800; margin-top: 6px; letter-spacing: -0.02em; }
+    .stat .v {
+      font-size: 1.15rem;
+      font-weight: 800;
+      margin-top: 6px;
+      letter-spacing: -0.02em;
+      cursor: pointer;
+    }
     .up { color: var(--green); }
     .down { color: var(--red); }
 
-    .section {
-      margin-bottom: 10px;
-    }
+    .section { margin-bottom: 10px; }
     .section-title {
       display: flex;
       justify-content: space-between;
@@ -120,8 +182,9 @@
       gap: 10px;
       margin: 8px 0 0;
       font-weight: 800;
-      font-size: 1.02rem;
+      font-size: 1rem;
       padding: 12px 14px;
+      min-height: 48px;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: var(--radius);
@@ -129,10 +192,9 @@
       cursor: pointer;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
-    .section.collapsed .section-title {
-      margin-bottom: 0;
-    }
+    .section.collapsed .section-title { margin-bottom: 0; }
     .section:not(.collapsed) .section-title {
       border-bottom-left-radius: 0;
       border-bottom-right-radius: 0;
@@ -157,20 +219,23 @@
       transition: transform 0.18s ease;
     }
     .section.collapsed .chev { transform: rotate(-90deg); }
-    .section-title .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .section-title .label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .section-title .meta-right {
       color: var(--muted);
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 600;
       flex: 0 0 auto;
-    }
-    .section-body {
+      max-width: 42%;
       overflow: hidden;
-      transition: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .section.collapsed .section-body {
-      display: none;
-    }
+    .section-body { overflow: hidden; }
+    .section.collapsed .section-body { display: none; }
     .section:not(.collapsed) .section-body .card {
       border-top-left-radius: 0;
       border-top-right-radius: 0;
@@ -187,12 +252,12 @@
     .pos:last-child { border-bottom: 0; padding-bottom: 0; }
     .pos:first-child { padding-top: 0; }
     .ticker { font-weight: 800; }
-    .meta { color: var(--muted); font-size: 0.82rem; margin-top: 3px; }
-    .right { text-align: right; }
+    .meta { color: var(--muted); font-size: 0.82rem; margin-top: 3px; word-break: break-word; }
+    .right { text-align: right; flex: 0 0 auto; }
 
     .move {
       display: grid;
-      grid-template-columns: 42px 1fr auto;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
       gap: 10px;
       align-items: center;
       padding: 12px 0;
@@ -213,50 +278,69 @@
       margin-top: 10px;
       background: #fbfcfe;
     }
+    .ideas-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .pill {
       border-radius: 999px;
       padding: 5px 10px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 800;
+      white-space: nowrap;
     }
     .pill.buy { background: var(--green-soft); color: var(--green); }
     .pill.hold { background: var(--amber-soft); color: var(--amber); }
     .pill.avoid { background: var(--red-soft); color: var(--red); }
 
+    /* —— Bottom dock: phone only —— */
     .actions {
       position: fixed;
       left: 0; right: 0; bottom: 0;
-      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + var(--safe-bottom)) max(16px, env(safe-area-inset-left, 0px));
       background: rgba(244,247,251,0.92);
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border-top: 1px solid var(--line);
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      z-index: 20;
+      z-index: 30;
     }
-    button {
+    button, .btn {
       appearance: none;
       border: 0;
       border-radius: 16px;
-      padding: 14px 10px;
+      padding: 14px 14px;
+      min-height: 48px;
       font-size: 0.92rem;
       font-weight: 800;
       background: var(--text);
       color: white;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      font-family: inherit;
     }
-    button.secondary { background: white; color: var(--text); border: 1px solid var(--line); }
-    button.good { background: var(--green); }
-    button.warn { background: var(--amber); color: white; }
-    button:disabled { opacity: 0.6; }
+    button.secondary, .btn.secondary {
+      background: white;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    button.good, .btn.good { background: var(--green); }
+    button.warn, .btn.warn { background: var(--amber); color: white; }
+    button:disabled, .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    button:hover:not(:disabled), .btn:hover:not(:disabled) { filter: brightness(1.05); }
+    button:active:not(:disabled), .btn:active:not(:disabled) { transform: scale(0.98); }
 
     .banner {
       border-radius: 16px;
       padding: 12px 14px;
       margin-bottom: 12px;
       font-size: 0.9rem;
-      line-height: 1.35;
+      line-height: 1.4;
     }
     .banner.info { background: var(--blue-soft); color: #1e3a8a; }
     .banner.warn { background: var(--amber-soft); color: #92400e; }
@@ -278,137 +362,247 @@
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 10px;
+      min-width: 0;
     }
     .mini .k { color: var(--muted); font-size: 0.72rem; }
-    .mini .v { font-weight: 800; margin-top: 3px; }
+    .mini .v { font-weight: 800; margin-top: 3px; overflow-wrap: anywhere; }
     ul { margin: 8px 0 0; padding-left: 18px; color: #40516a; }
     .footer-note {
       color: var(--muted);
       font-size: 0.75rem;
-      line-height: 1.4;
-      margin: 8px 2px 0;
+      line-height: 1.45;
+      margin: 10px 2px 0;
+      max-width: 72ch;
+    }
+
+    /* Muy estrecho (iPhone SE) */
+    @media (max-width: 380px) {
+      :root { --pad-x: 12px; }
+      .hero-pill .v { font-size: 0.92rem; }
+      .section-title { font-size: 0.94rem; padding: 11px 12px; }
+      .pill { font-size: 0.68rem; padding: 4px 8px; }
+    }
+
+    /* Tablet */
+    @media (min-width: 720px) {
+      :root { --pad-x: 24px; }
+      .hero-grid { grid-template-columns: repeat(4, 1fr); }
+      .mini-grid { grid-template-columns: repeat(4, 1fr); }
+      .ideas-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .ideas-grid > .meta { grid-column: 1 / -1; }
+      .ideas-grid > .empty { grid-column: 1 / -1; }
+      .ideas-grid > .idea { margin-top: 0; }
+    }
+
+    /* Desktop */
+    @media (min-width: 1024px) {
+      body {
+        padding:
+          calc(22px + var(--safe-top))
+          28px
+          36px
+          28px;
+      }
+      .topbar {
+        align-items: center;
+        margin-bottom: 18px;
+      }
+      .desktop-actions { display: flex; }
+      .actions.mobile-dock { display: none; }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+        gap: 18px;
+        align-items: start;
+      }
+      .col-main,
+      .col-side {
+        display: flex;
+        flex-direction: column;
+      }
+      .section-span {
+        grid-column: 1 / -1;
+      }
+      /* Resumen a ancho completo encima de las 2 columnas */
+      .layout > .section-span { margin-bottom: 4px; }
+
+      .hero { padding: 22px 24px; }
+      .card { padding: 16px 18px; }
+      .section-title:hover { background: #f8fbff; }
+      button, .btn { min-width: 132px; }
+      .footer-note { margin-top: 16px; font-size: 0.8rem; }
+      /* En columnas ~550px, 1 idea por fila se lee mejor */
+      .col-side .ideas-grid,
+      .col-main .ideas-grid {
+        grid-template-columns: 1fr;
+      }
+      .col-main .mini-grid,
+      .col-side .mini-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* Desktop ancho */
+    @media (min-width: 1280px) {
+      :root { --shell: 1280px; }
+      .layout {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 22px;
+      }
+      .col-main .ideas-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .section-title:hover .chev { filter: brightness(0.96); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .section-title .chev { transition: none; }
+      button:active, .btn:active { transform: none; }
     }
   </style>
 </head>
 <body>
-  <div class="top">
-    <div>
-      <h1>Tu dinero, claro</h1>
-      <div class="hello" id="hello">Cargando tu dashboard…</div>
-    </div>
-    <div id="modeBadge" class="badge">—</div>
-  </div>
+  <div class="app">
+    <header class="topbar">
+      <div class="topbar-copy">
+        <h1>Tu dinero, claro</h1>
+        <div class="hello" id="hello">Cargando tu dashboard…</div>
+      </div>
+      <div class="topbar-right">
+        <div id="modeBadge" class="badge">—</div>
+        <div class="desktop-actions" aria-label="Acciones escritorio">
+          <button type="button" class="secondary" id="refreshBtnDesktop" onclick="refreshAll()">Actualizar</button>
+          <button type="button" class="good" id="autoBtnDesktop" onclick="runAutopilot()">Auto invertir</button>
+        </div>
+      </div>
+    </header>
 
-  <div id="banner" class="banner info">Preparando resumen de portafolio…</div>
+    <div id="banner" class="banner info">Preparando resumen de portafolio…</div>
 
-  <div class="section" data-section="resumen">
-    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-      <div class="left"><span class="chev">▾</span><span class="label">Resumen</span></div>
-      <span class="meta-right" id="resumenMeta">cuenta</span>
-    </div>
-    <div class="section-body">
-      <div class="hero" id="hero" style="border-radius:0 0 22px 22px; margin-bottom:0">
-        <div class="label">Valor total</div>
-        <div class="equity" id="equity">—</div>
-        <div class="hero-grid">
-          <div class="hero-pill">
-            <div class="k">Hoy</div>
-            <div class="v" id="dailyPnl">—</div>
+    <div class="layout">
+      <div class="section section-span" data-section="resumen">
+        <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+          <div class="left"><span class="chev">▾</span><span class="label">Resumen</span></div>
+          <span class="meta-right" id="resumenMeta">cuenta</span>
+        </div>
+        <div class="section-body">
+          <div class="hero" id="hero" style="border-radius:0 0 22px 22px; margin-bottom:0">
+            <div class="label">Valor total</div>
+            <div class="equity" id="equity">—</div>
+            <div class="hero-grid">
+              <div class="hero-pill">
+                <div class="k">Hoy</div>
+                <div class="v" id="dailyPnl">—</div>
+              </div>
+              <div class="hero-pill">
+                <div class="k">Resultado</div>
+                <div class="v" id="totalPnl">—</div>
+              </div>
+              <div class="hero-pill">
+                <div class="k">Disponible</div>
+                <div class="v" id="cash">—</div>
+              </div>
+              <div class="hero-pill">
+                <div class="k">Posiciones</div>
+                <div class="v" id="openPos">—</div>
+              </div>
+            </div>
           </div>
-          <div class="hero-pill">
-            <div class="k">Resultado</div>
-            <div class="v" id="totalPnl">—</div>
-          </div>
-          <div class="hero-pill">
-            <div class="k">Disponible</div>
-            <div class="v" id="cash">—</div>
-          </div>
-          <div class="hero-pill">
-            <div class="k">Posiciones</div>
-            <div class="v" id="openPos">—</div>
+          <div class="grid2" style="margin-top:10px">
+            <div class="card stat">
+              <div class="k">Estado del bot</div>
+              <div class="v" id="botState" title="Toca para pausar / reanudar">—</div>
+            </div>
+            <div class="card stat">
+              <div class="k">Mercado</div>
+              <div class="v" id="marketState">—</div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="grid2" style="margin-top:10px">
-        <div class="card stat">
-          <div class="k">Estado del bot</div>
-          <div class="v" id="botState">—</div>
+
+      <div class="col col-main">
+        <div class="section" data-section="posiciones">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Posiciones abiertas</span></div>
+            <span class="meta-right" id="posCount">0</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="positionsCard"><div class="empty">Aún no hay posiciones abiertas.</div></div>
+          </div>
         </div>
-        <div class="card stat">
-          <div class="k">Mercado</div>
-          <div class="v" id="marketState">—</div>
+
+        <div class="section" data-section="movimientos">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Movimientos</span></div>
+            <span class="meta-right">últimos</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="movesCard"><div class="empty">Cuando el bot opere, verás aquí cada movimiento.</div></div>
+          </div>
+        </div>
+
+        <div class="section" data-section="noticias">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Noticias</span></div>
+            <span class="meta-right" id="newsMeta">—</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col col-side">
+        <div class="section" data-section="evitar">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">No invertir / evitar</span></div>
+            <span class="meta-right" id="avoidMeta">—</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="avoidCard"><div class="empty">Cargando lista de evitar…</div></div>
+          </div>
+        </div>
+
+        <div class="section" data-section="oportunidades">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Oportunidades</span></div>
+            <span class="meta-right" id="ideasMeta">auto</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
+          </div>
+        </div>
+
+        <div class="section" data-section="ia">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Decisión IA</span></div>
+            <span class="meta-right" id="aiMeta">—</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="aiCard"><div class="empty">La IA revisará el análisis cuantitativo…</div></div>
+          </div>
         </div>
       </div>
     </div>
+
+    <p class="footer-note">
+      iPhone y escritorio: mismo panel. El cuant analiza, la IA decide y el autopilot solo compra si aprueba.
+      No hay ganancias garantizadas.
+    </p>
   </div>
 
-  <div class="section" data-section="posiciones">
-    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-      <div class="left"><span class="chev">▾</span><span class="label">Posiciones abiertas</span></div>
-      <span class="meta-right" id="posCount">0</span>
-    </div>
-    <div class="section-body">
-      <div class="card" id="positionsCard"><div class="empty">Aún no hay posiciones abiertas.</div></div>
-    </div>
-  </div>
-
-  <div class="section" data-section="movimientos">
-    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-      <div class="left"><span class="chev">▾</span><span class="label">Movimientos</span></div>
-      <span class="meta-right">últimos</span>
-    </div>
-    <div class="section-body">
-      <div class="card" id="movesCard"><div class="empty">Cuando el bot opere, verás aquí cada movimiento.</div></div>
-    </div>
-  </div>
-
-  <div class="section" data-section="noticias">
-    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-      <div class="left"><span class="chev">▾</span><span class="label">Noticias de hoy</span></div>
-      <span class="meta-right" id="newsMeta">—</span>
-    </div>
-    <div class="section-body">
-      <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
-    </div>
-  </div>
-
-  <div class="section" data-section="evitar">
-    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-      <div class="left"><span class="chev">▾</span><span class="label">No invertir / evitar</span></div>
-      <span class="meta-right" id="avoidMeta">—</span>
-    </div>
-    <div class="section-body">
-      <div class="card" id="avoidCard"><div class="empty">Cargando lista de evitar…</div></div>
-    </div>
-  </div>
-
-  <div class="section" data-section="oportunidades">
-    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-      <div class="left"><span class="chev">▾</span><span class="label">Oportunidades de hoy</span></div>
-      <span class="meta-right" id="ideasMeta">auto</span>
-    </div>
-    <div class="section-body">
-      <div class="card" id="ideasCard"><div class="empty">Analizando automáticamente…</div></div>
-    </div>
-  </div>
-
-  <div class="section" data-section="ia">
-    <div class="section-title" role="button" tabindex="0" aria-expanded="true">
-      <div class="left"><span class="chev">▾</span><span class="label">Decisión IA</span></div>
-      <span class="meta-right" id="aiMeta">—</span>
-    </div>
-    <div class="section-body">
-      <div class="card" id="aiCard"><div class="empty">La IA revisará el análisis cuantitativo…</div></div>
-    </div>
-  </div>
-
-  <p class="footer-note">
-    El cuant analiza. La IA decide. El autopilot solo compra si la IA aprueba (gate ON). No hay ganancias garantizadas.
-  </p>
-
-  <div class="actions">
-    <button class="secondary" id="refreshBtn" onclick="refreshAll()">Actualizar</button>
-    <button class="good" id="autoBtn" onclick="runAutopilot()">Auto invertir</button>
+  <div class="actions mobile-dock" role="toolbar" aria-label="Acciones móvil">
+    <button type="button" class="secondary" id="refreshBtn" onclick="refreshAll()">Actualizar</button>
+    <button type="button" class="good" id="autoBtn" onclick="runAutopilot()">Auto invertir</button>
   </div>
 
   <script>
@@ -497,6 +691,13 @@
     let currency = 'USD';
     let lastDashboard = null;
 
+    function setBusy(busy) {
+      ['refreshBtn', 'refreshBtnDesktop', 'autoBtn', 'autoBtnDesktop'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = busy;
+      });
+    }
+
     function setBanner(text, type='info') {
       const el = document.getElementById('banner');
       el.className = `banner ${type}`;
@@ -530,7 +731,6 @@
       else if ((h.daily_pnl || 0) >= 0) setBanner('Buen ritmo: hoy vas en positivo o plano. Sigue con disciplina.', 'ok');
       else setBanner('Hoy vas en rojo. El bot prioriza proteger capital antes de forzar operaciones.', 'warn');
 
-      // Positions
       const positions = data.positions || [];
       document.getElementById('posCount').textContent = String(positions.length);
       const posCard = document.getElementById('positionsCard');
@@ -550,7 +750,6 @@
           </div>`).join('');
       }
 
-      // Movements
       const moves = data.movements || [];
       const movesCard = document.getElementById('movesCard');
       if (!moves.length) {
@@ -598,7 +797,7 @@
       }
       const storyHtml = stories.length ? `
         <div class="meta" style="margin-top:10px"><strong>Impacto por acción</strong> (eventos recientes, no solo hoy)</div>
-        ${stories.slice(0,8).map(s => `
+        <div class="ideas-grid">${stories.slice(0,8).map(s => `
           <div class="idea">
             <div class="row" style="justify-content:space-between">
               <div class="ticker">${esc(s.ticker)}</div>
@@ -606,7 +805,7 @@
             </div>
             <div class="meta">${esc(s.headline || '')}</div>
             <div class="meta">${s.governance ? '⚠️ riesgo gobernanza/CEO · ' : ''}hace ${(Number(s.age_hours||0)/24).toFixed(1)}d</div>
-          </div>`).join('')}` : '';
+          </div>`).join('')}</div>` : '';
       card.innerHTML = `
         <div class="meta">Situación actual · ventana ${lookback} días (Google/Yahoo/BBC/CNBC/Fed). Un escándalo de hace una semana sí cuenta.</div>
         <div class="mini-grid">
@@ -626,7 +825,7 @@
 
     function renderIdeaList(list, emptyText, showRisks) {
       if (!list || !list.length) return `<div class="empty">${esc(emptyText)}</div>`;
-      return list.map(r => {
+      const cards = list.map(r => {
         const p = r.prediction || {};
         const plan = r.plan || {};
         const nf = Number((p.factors || {}).news_factor || 0);
@@ -657,15 +856,14 @@
             <ul>${bullets.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
           </div>`;
       }).join('');
+      return `<div class="ideas-grid">${cards}</div>`;
     }
 
     function pickAvoidList(result) {
       let avoids = result.do_not_invest || [];
       if (avoids.length) return avoids;
-      // Fallback: ranking / recommendations con action avoid
       const pool = [].concat(result.ranking || [], result.recommendations || []);
       avoids = pool.filter(r => (r.plan || {}).action === 'avoid');
-      // Último recurso: peores del ranking
       if (!avoids.length && (result.ranking || []).length) {
         avoids = (result.ranking || []).slice().reverse().slice(0, 10);
       }
@@ -694,7 +892,7 @@
       const gate = ai.gate_autopilot ? 'Autopilot exige approve_trade' : 'Gate OFF (IA solo asesora)';
       card.innerHTML = `
         <div class="meta">Cuant → IA → ejecución. Provider <strong>${esc(ai.provider || 'local')}</strong>. ${esc(gate)}.</div>
-        ${rows.map(d => {
+        <div class="ideas-grid">${rows.map(d => {
           const action = d.action || 'hold';
           const appr = d.approve_trade
             ? '<span class="pill buy">✓ ejecuta</span>'
@@ -713,7 +911,7 @@
               <div class="meta" style="margin-top:8px">${esc(d.summary || '')}</div>
               <ul>${rationale.map(x => `<li>${esc(x)}</li>`).concat(risks.map(x => `<li style="color:var(--red)">! ${esc(x)}</li>`)).join('')}</ul>
             </div>`;
-        }).join('')}`;
+        }).join('')}</div>`;
     }
 
     function renderIdeas(result) {
@@ -765,26 +963,23 @@
     }
 
     async function refreshAll() {
-      const btn = document.getElementById('refreshBtn');
-      btn.disabled = true;
+      setBusy(true);
       try {
         const res = await fetch('/dashboard?mode=alpaca');
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'No se pudo cargar dashboard');
         renderDashboard(data);
         if (data.news) renderNewsPayload(data.news, {});
-        // Siempre analiza solo — sin botón
         await runAnalyze(true);
       } catch (err) {
         setBanner(err.message || String(err), 'warn');
       } finally {
-        btn.disabled = false;
+        setBusy(false);
       }
     }
 
     async function runAutopilot() {
-      const btn = document.getElementById('autoBtn');
-      btn.disabled = true;
+      setBusy(true);
       setBanner('Ejecutando autopilot… buscando solo operaciones con ventaja neta.', 'info');
       try {
         const res = await fetch('/autopilot/run?top_n=15&mode=alpaca', { method: 'POST' });
@@ -797,12 +992,10 @@
         await refreshAll();
       } catch (err) {
         setBanner(err.message || String(err), 'warn');
-      } finally {
-        btn.disabled = false;
+        setBusy(false);
       }
     }
 
-    // Long-press helpers on desktop/mobile via extra buttons in banner area
     document.getElementById('botState').addEventListener('click', async () => {
       if (!lastDashboard) return;
       const halted = lastDashboard.headline?.halted;
@@ -811,10 +1004,7 @@
       await refreshAll();
     });
 
-    // Secciones colapsables (recuerda estado en el teléfono)
     wireCollapse();
-
-    // Auto al abrir + cada 5 min (noticias + oportunidades)
     refreshAll();
     setInterval(() => { refreshAll(); }, 5 * 60 * 1000);
   </script>

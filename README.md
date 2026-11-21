@@ -70,6 +70,8 @@ advisor btg-status
 uvicorn advisor.api.app:app --reload --port 8000
 ```
 
+Dashboard web (`/`): responsive para **iPhone** (dock inferior + safe-area) y **escritorio** (2 columnas + acciones en el header).
+
 Endpoints:
 
 - `GET /health`
