@@ -300,7 +300,10 @@ def analyze_last() -> dict:
     """Último escaneo cacheado (rápido para pintar oportunidades al abrir)."""
     cached = AdvisoryPipeline().load_analyze_cache()
     if not cached:
-        raise HTTPException(status_code=404, detail="Sin caché aún. Ejecuta /analyze.")
+        raise HTTPException(
+            status_code=404,
+            detail="Sin caché aún. Ejecuta /analyze?refresh=true",
+        )
     return cached
 
 

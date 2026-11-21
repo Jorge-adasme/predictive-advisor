@@ -1373,8 +1373,36 @@
       updateLiveAge();
     }
 
+    function apiErrorMessage(data, fallback) {
+      const d = data && data.detail;
+      if (d == null || d === '') return fallback || 'Error desconocido';
+      if (typeof d === 'string') return d;
+      if (Array.isArray(d)) {
+        return d.map((x) => {
+          if (typeof x === 'string') return x;
+          if (x && typeof x === 'object') return x.msg || x.message || JSON.stringify(x);
+          return String(x);
+        }).join(' · ');
+      }
+      if (typeof d === 'object') return d.msg || d.message || JSON.stringify(d);
+      return String(d);
+    }
+
+    async function fetchAnalyze(url) {
+      const res = await fetch(url);
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Respuesta inválida del servidor (${res.status})`);
+      }
+      if (!res.ok) throw new Error(apiErrorMessage(data, `Error HTTP ${res.status}`));
+      return data;
+    }
+
     async function runAnalyze(silent) {
       const ideasCard = document.getElementById('ideasCard');
+      let painted = false;
       if (ideasCard && !silent) {
         ideasCard.innerHTML = '<div class="empty">Escaneando universo Alpaca… puede tardar la primera vez.</div>';
       }
@@ -1382,36 +1410,48 @@
       try {
         // 1) pinta caché al instante si existe
         try {
-          const cachedRes = await fetch('/analyze/last');
-          if (cachedRes.ok) {
-            const cached = await cachedRes.json();
-            renderIdeas(cached);
-            const cn = (cached.opportunities || []).length;
-            setBanner(
-              `Mostrando último escaneo (${cn} opp · hace ${cached.cache_age_sec || 0}s). Actualizando…`,
-              'info'
-            );
-          }
-        } catch {}
+          const cached = await fetchAnalyze('/analyze/last');
+          renderIdeas(cached);
+          painted = true;
+          const cn = (cached.opportunities || []).length;
+          setBanner(
+            `Mostrando último escaneo (${cn} opp · hace ${cached.cache_age_sec || 0}s). Actualizando…`,
+            'info'
+          );
+        } catch {
+          // 404 sin caché es normal la primera vez
+        }
 
         // 2) rescanea universo completo
-        const res = await fetch('/analyze?top_n=50&refresh=true');
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error al analizar');
+        let data;
+        try {
+          data = await fetchAnalyze('/analyze?top_n=40&refresh=true');
+        } catch (freshErr) {
+          // Fallback: servir caché / analyze sin forzar refresh
+          try {
+            data = await fetchAnalyze('/analyze?top_n=40&refresh=false');
+            data.warning = data.warning || freshErr.message;
+          } catch {
+            throw freshErr;
+          }
+        }
         renderIdeas(data);
+        painted = true;
         lastAnalyzeAt = Date.now();
         const n = (data.opportunities || data.actionable || []).length;
         const scanned = data.scanned || 0;
         const uni = data.universe_size || scanned;
         setBanner(
-          data.message || `Listo: ${n} oportunidades · escaneados ${scanned}/${uni}`,
+          data.warning
+            ? `${data.message || 'Análisis con advertencia'} · ${data.warning}`
+            : (data.message || `Listo: ${n} oportunidades · escaneados ${scanned}/${uni}`),
           n ? 'ok' : 'warn'
         );
         return data;
       } catch (err) {
-        const msg = err.message || String(err);
+        const msg = (err && err.message) ? err.message : apiErrorMessage(err, String(err));
         setBanner(msg, 'warn');
-        if (ideasCard && !(ideasCard.innerHTML || '').includes('idea')) {
+        if (!painted && ideasCard) {
           ideasCard.innerHTML = `<div class="empty">No se pudieron cargar oportunidades: ${esc(msg)}</div>`;
         }
         return null;
