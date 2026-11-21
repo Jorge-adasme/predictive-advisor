@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from advisor.adapters.alpaca_data import AlpacaMarketDataAdapter
 from advisor.adapters.btg import BTGChileAdapter
 from advisor.adapters.yahoo import YahooMarketDataAdapter
 from advisor.analysis.regime import detect_regime
@@ -10,10 +11,17 @@ from advisor.prediction.scoring import score_symbol
 from advisor.risk.engine import build_trade_plan
 
 
+def build_market_data_adapter(settings: Settings):
+    broker = (settings.broker or "alpaca").lower()
+    if broker in {"alpaca", "alpaca_paper", "alpaca_live"}:
+        return AlpacaMarketDataAdapter(settings)
+    return YahooMarketDataAdapter(settings)
+
+
 class AdvisoryPipeline:
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
-        self.market_data = YahooMarketDataAdapter(self.settings)
+        self.market_data = build_market_data_adapter(self.settings)
         self.btg = BTGChileAdapter()
 
     def analyze(self, top_n: int | None = None) -> dict:
@@ -36,6 +44,7 @@ class AdvisoryPipeline:
                 "ranking": [],
                 "actionable": [],
                 "scanned": 0,
+                "broker": self.settings.broker,
                 "btg_status": self.btg.status().__dict__,
                 "message": None,
                 "error": "No se pudieron descargar datos de mercado.",
@@ -98,11 +107,13 @@ class AdvisoryPipeline:
             "ranking": [r.model_dump(mode="json") for r in ranking],
             "actionable": [r.model_dump(mode="json") for r in actionable],
             "scanned": len(predictions),
+            "broker": self.settings.broker,
             "cost_model": {
                 "round_trip_cost_pct": self.settings.round_trip_cost_pct,
                 "min_edge_net_pct": self.settings.min_edge_net_pct,
                 "risk_per_trade": self.settings.risk_per_trade,
                 "horizon_days": self.settings.horizon_days,
+                "currency": self.settings.base_currency,
             },
             "btg_status": self.btg.status().__dict__,
             "message": message,

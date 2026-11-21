@@ -16,32 +16,39 @@ class Settings(BaseSettings):
     )
 
     env: str = "dev"
-    base_currency: str = "CLP"
+    base_currency: str = "USD"
+    broker: str = "alpaca"  # alpaca | local_paper | btg_stub
 
     risk_per_trade: float = Field(default=0.0075, ge=0.001, le=0.05)
     max_position_pct: float = Field(default=0.12, ge=0.01, le=0.5)
     max_daily_loss_pct: float = Field(default=0.02, ge=0.005, le=0.1)
-    min_edge_net_pct: float = Field(default=0.004, ge=0.0, le=0.05)
+    min_edge_net_pct: float = Field(default=0.002, ge=0.0, le=0.05)
 
-    commission_rate: float = Field(default=0.004, ge=0.0, le=0.05)
-    vat_rate: float = Field(default=0.19, ge=0.0, le=0.4)
-    slippage_bps: float = Field(default=8.0, ge=0.0, le=100.0)
+    # Alpaca default: commission-free equities + slippage model
+    commission_rate: float = Field(default=0.0, ge=0.0, le=0.05)
+    vat_rate: float = Field(default=0.0, ge=0.0, le=0.4)
+    slippage_bps: float = Field(default=5.0, ge=0.0, le=100.0)
 
     lookback_days: int = Field(default=420, ge=60, le=2000)
     horizon_days: int = Field(default=10, ge=1, le=60)
     top_n: int = Field(default=8, ge=1, le=30)
 
     data_dir: Path = ROOT_DIR / "data"
-    universe_path: Path = ROOT_DIR / "configs" / "universe_chile.json"
+    universe_path: Path = ROOT_DIR / "configs" / "universe_alpaca_us.json"
 
-    # Live BTG (oficial). Por defecto OFF hasta tener API/DMA.
+    # Alpaca
+    alpaca_api_key: str = ""
+    alpaca_secret_key: str = ""
+    alpaca_paper: bool = True
+
+    # Live BTG (oficial). Por defecto OFF.
     btg_live_enabled: bool = False
     btg_account_id: str = ""
     btg_live_token: str = ""
 
     @property
     def round_trip_cost_pct(self) -> float:
-        """Costo estimado ida y vuelta: comisión+IVA por lado + slippage."""
+        """Costo estimado ida y vuelta: comisión(+IVA) por lado + slippage."""
         commission_with_vat = self.commission_rate * (1 + self.vat_rate)
         slippage = self.slippage_bps / 10_000.0
         return 2 * (commission_with_vat + slippage)

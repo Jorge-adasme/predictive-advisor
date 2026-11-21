@@ -75,23 +75,28 @@ Una recomendación `buy` solo aparece si:
 - el régimen de mercado no invalida la idea,
 - el tamaño respeta riesgo por trade y tope de posición.
 
-## Autopilot (paper)
+## Alpaca (recomendado para auto-ejecución)
 
-Ejecuta automáticamente compras/ventas **simuladas** solo cuando hay edge neto estimado:
+Guía completa: [`docs/ALPACA_SETUP.md`](docs/ALPACA_SETUP.md)
 
 ```bash
-advisor autopilot --top 8
-advisor portfolio
-advisor halt
-advisor resume
+# 1) Configura keys paper en .env
+# 2) Analiza universo USA
+advisor analyze --top 8
+
+# 3) Autopilot en Alpaca Paper
+advisor alpaca-status
+advisor autopilot --mode alpaca --top 8
+advisor portfolio --mode alpaca
 ```
 
 API:
 
-- `POST /autopilot/run`
-- `GET /portfolio`
-- `POST /portfolio/halt`
-- `POST /portfolio/resume`
+- `POST /autopilot/run?mode=alpaca`
+- `GET /alpaca/status`
+- `GET /portfolio?mode=alpaca`
+- `POST /portfolio/halt?mode=alpaca`
+- `POST /portfolio/resume?mode=alpaca`
 
 Reglas de protección:
 

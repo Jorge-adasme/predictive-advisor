@@ -82,43 +82,63 @@ def journal(limit: int = Query(default=50, ge=1, le=500)) -> dict:
 
 
 @app.post("/autopilot/run")
-def autopilot_run(top_n: int = Query(default=8, ge=1, le=30)) -> dict:
-    """Ejecuta un ciclo de inversión automática en PAPER."""
+def autopilot_run(
+    top_n: int = Query(default=8, ge=1, le=30),
+    mode: str = Query(default="alpaca"),
+) -> dict:
+    """Ejecuta un ciclo de inversión automática (alpaca|paper)."""
     from advisor.execution.autopilot import Autopilot
 
-    result = Autopilot(mode="paper").run_once(top_n=top_n)
+    result = Autopilot(mode=mode).run_once(top_n=top_n)
     return {
         "ts": result.ts,
+        "mode": result.mode,
         "message": result.message,
         "actions": result.actions,
         "portfolio": result.portfolio,
         "market": result.market,
         "disclaimer": (
-            "Autopilot paper: busca expectancy neta positiva con stops. "
-            "No garantiza ganancias. Live BTG requiere API oficial."
+            "Autopilot busca expectancy neta positiva con stops/kill-switch. "
+            "No garantiza ganancias. Usa paper antes de live."
         ),
     }
 
 
 @app.get("/portfolio")
-def portfolio() -> dict:
-    from advisor.execution.paper_broker import PaperBroker
+def portfolio(mode: str = Query(default="alpaca")) -> dict:
+    from advisor.execution.autopilot import build_broker
 
-    return PaperBroker(get_settings()).status()
+    return build_broker(get_settings(), mode).status()
 
 
 @app.post("/portfolio/halt")
-def portfolio_halt(reason: str = Query(default="manual_stop")) -> dict:
-    from advisor.execution.paper_broker import PaperBroker
+def portfolio_halt(
+    reason: str = Query(default="manual_stop"),
+    mode: str = Query(default="alpaca"),
+) -> dict:
+    from advisor.execution.autopilot import build_broker
 
-    return PaperBroker(get_settings()).halt(reason)
+    return build_broker(get_settings(), mode).halt(reason)
 
 
 @app.post("/portfolio/resume")
-def portfolio_resume() -> dict:
-    from advisor.execution.paper_broker import PaperBroker
+def portfolio_resume(mode: str = Query(default="alpaca")) -> dict:
+    from advisor.execution.autopilot import build_broker
 
-    return PaperBroker(get_settings()).resume()
+    return build_broker(get_settings(), mode).resume()
+
+
+@app.get("/alpaca/status")
+def alpaca_status() -> dict:
+    settings = get_settings()
+    if not settings.alpaca_api_key or not settings.alpaca_secret_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Faltan ADVISOR_ALPACA_API_KEY / ADVISOR_ALPACA_SECRET_KEY",
+        )
+    from advisor.execution.alpaca_broker import AlpacaBroker
+
+    return AlpacaBroker(settings).status()
 
 
 @app.get("/live/btg/status")

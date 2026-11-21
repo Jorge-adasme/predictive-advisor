@@ -16,29 +16,45 @@ class AutopilotResult:
     portfolio: dict
     market: dict | None
     message: str
+    mode: str
+
+
+def build_broker(settings: Settings, mode: str):
+    mode = mode.lower()
+    if mode in {"alpaca", "alpaca_paper", "alpaca_live"}:
+        from advisor.execution.alpaca_broker import AlpacaBroker
+
+        return AlpacaBroker(settings)
+    if mode in {"paper", "local_paper"}:
+        return PaperBroker(settings)
+    raise ValueError("mode debe ser 'alpaca' o 'paper'")
 
 
 class Autopilot:
-    """Ejecuta automáticamente solo ideas con edge neto positivo (paper por defecto).
+    """Ejecuta automáticamente ideas con edge neto positivo."""
 
-    Objetivo: maximizar expectancy neta con protección de capital.
-    No garantiza ganancias en cada operación.
-    """
-
-    def __init__(self, settings: Settings | None = None, mode: str = "paper"):
-        if mode != "paper":
-            raise ValueError(
-                "Por ahora solo mode='paper'. Live BTG requiere API/partner oficial."
-            )
+    def __init__(self, settings: Settings | None = None, mode: str = "alpaca"):
         self.settings = settings or get_settings()
+        self.mode = mode.lower()
         self.pipeline = AdvisoryPipeline(self.settings)
-        self.broker = PaperBroker(self.settings)
+        self.broker = build_broker(self.settings, self.mode)
 
     def run_once(self, top_n: int | None = None) -> AutopilotResult:
         top_n = top_n or self.settings.top_n
         actions: list[dict] = []
         analysis = self.pipeline.analyze(top_n=top_n)
-        portfolio = self.broker.status()
+
+        try:
+            portfolio = self.broker.status()
+        except Exception as exc:
+            return AutopilotResult(
+                ts=datetime.now(timezone.utc).isoformat(),
+                actions=[],
+                portfolio={},
+                market=None,
+                message=f"No se pudo leer portafolio ({self.mode}): {exc}",
+                mode=self.mode,
+            )
 
         if analysis.get("error"):
             return AutopilotResult(
@@ -47,6 +63,7 @@ class Autopilot:
                 portfolio=portfolio,
                 market=None,
                 message=analysis["error"],
+                mode=self.mode,
             )
 
         if portfolio.get("halted"):
@@ -56,24 +73,42 @@ class Autopilot:
                 portfolio=portfolio,
                 market=analysis.get("market"),
                 message=f"Autopilot en pausa: {portfolio.get('halt_reason')}",
+                mode=self.mode,
             )
 
-        # 1) Actualiza marks y gestiona salidas (stop/target)
+        # Kill-switch por drawdown diario Alpaca/local
+        daily_pnl = float(portfolio.get("daily_pnl", 0.0) or 0.0)
+        equity = float(portfolio.get("equity", 0.0) or 0.0)
+        if equity > 0 and daily_pnl <= -equity * self.settings.max_daily_loss_pct:
+            portfolio = self.broker.halt("max_daily_loss")
+            return AutopilotResult(
+                ts=datetime.now(timezone.utc).isoformat(),
+                actions=actions,
+                portfolio=portfolio,
+                market=analysis.get("market"),
+                message="Se alcanzó max pérdida diaria. Autopilot detenido.",
+                mode=self.mode,
+            )
+
         price_map = {
             item["prediction"]["ticker"]: float(item["prediction"]["last_price"])
             for item in analysis.get("ranking", []) + analysis.get("recommendations", [])
         }
+
+        # Salidas stop/target (para paper local; en Alpaca bracket suele manejarlo)
         for ticker, pos in list(portfolio.get("positions", {}).items()):
             px = price_map.get(ticker)
             if px is None:
                 continue
-            self.broker.mark_price(ticker, px)
-            stop = float(pos["stop"])
-            target = float(pos["target"])
-            if px <= stop:
+            if hasattr(self.broker, "mark_price"):
+                self.broker.mark_price(ticker, px)
+            stop = float(pos.get("stop") or 0.0)
+            target = float(pos.get("target") or 0.0)
+            # En Alpaca no siempre persistimos stop/target locales
+            if stop > 0 and px <= stop:
                 result = self.broker.sell(ticker, px, reason="stop_loss")
                 actions.append({"type": "exit", **result})
-            elif px >= target:
+            elif target > 0 and px >= target:
                 result = self.broker.sell(ticker, px, reason="take_profit")
                 actions.append({"type": "exit", **result})
 
@@ -84,10 +119,10 @@ class Autopilot:
                 actions=actions,
                 portfolio=portfolio,
                 market=analysis.get("market"),
-                message="Se alcanzó max pérdida diaria. Autopilot detenido.",
+                message="Autopilot detenido por kill-switch.",
+                mode=self.mode,
             )
 
-        # 2) Entradas nuevas solo BUY con edge neto
         open_tickers = set(portfolio.get("positions", {}).keys())
         max_positions = 4
         for item in analysis.get("actionable", []):
@@ -115,6 +150,7 @@ class Autopilot:
                     f"auto_edge={plan['edge_net_pct']:.4f}"
                     f"|prob={pred['probability_up']:.2f}"
                     f"|regime={analysis['market']['regime']}"
+                    f"|mode={self.mode}"
                 ),
             )
             actions.append({"type": "entry", "ticker": ticker, **result})
@@ -129,7 +165,7 @@ class Autopilot:
             )
         else:
             done = [a for a in actions if a.get("ok")]
-            message = f"Autopilot ejecutó {len(done)} acción(es)."
+            message = f"Autopilot ({self.mode}) ejecutó {len(done)} acción(es)."
 
         return AutopilotResult(
             ts=datetime.now(timezone.utc).isoformat(),
@@ -137,4 +173,5 @@ class Autopilot:
             portfolio=portfolio,
             market=analysis.get("market"),
             message=message,
+            mode=self.mode,
         )

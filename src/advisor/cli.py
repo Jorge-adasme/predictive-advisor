@@ -152,20 +152,35 @@ def btg_status() -> None:
     )
 
 
+@app.command("alpaca-status")
+def alpaca_status() -> None:
+    """Estado de cuenta Alpaca (paper/live según .env)."""
+    settings = get_settings()
+    if not settings.alpaca_api_key or not settings.alpaca_secret_key:
+        console.print("[red]Faltan ADVISOR_ALPACA_API_KEY / ADVISOR_ALPACA_SECRET_KEY[/red]")
+        console.print("Guía: docs/ALPACA_SETUP.md")
+        raise typer.Exit(code=1)
+    from advisor.execution.alpaca_broker import AlpacaBroker
+
+    console.print_json(json.dumps(AlpacaBroker(settings).status(), default=str))
+
+
 @app.command("autopilot")
 def autopilot(
+    mode: str = typer.Option("alpaca", help="alpaca | paper"),
     once: bool = typer.Option(True, help="Ejecutar un ciclo y salir"),
     top: int = typer.Option(8, help="Ideas a evaluar"),
 ) -> None:
-    """Ejecuta inversiones automáticamente en modo PAPER con risk gates."""
+    """Ejecuta inversiones automáticamente con risk gates."""
     from advisor.execution.autopilot import Autopilot
 
-    result = Autopilot(mode="paper").run_once(top_n=top)
+    result = Autopilot(mode=mode).run_once(top_n=top)
     console.print(f"[bold]{result.message}[/bold]")
     console.print_json(
         json.dumps(
             {
                 "ts": result.ts,
+                "mode": result.mode,
                 "actions": result.actions,
                 "portfolio": result.portfolio,
                 "market": result.market,
@@ -178,25 +193,28 @@ def autopilot(
 
 
 @app.command("portfolio")
-def portfolio() -> None:
-    """Estado del portafolio paper."""
-    from advisor.execution.paper_broker import PaperBroker
+def portfolio(mode: str = typer.Option("alpaca", help="alpaca | paper")) -> None:
+    """Estado del portafolio."""
+    from advisor.execution.autopilot import build_broker
 
-    console.print_json(json.dumps(PaperBroker(get_settings()).status(), default=str))
+    console.print_json(json.dumps(build_broker(get_settings(), mode).status(), default=str))
 
 
 @app.command("halt")
-def halt(reason: str = typer.Option("manual_stop")) -> None:
-    from advisor.execution.paper_broker import PaperBroker
+def halt(
+    mode: str = typer.Option("alpaca", help="alpaca | paper"),
+    reason: str = typer.Option("manual_stop"),
+) -> None:
+    from advisor.execution.autopilot import build_broker
 
-    console.print_json(json.dumps(PaperBroker(get_settings()).halt(reason), default=str))
+    console.print_json(json.dumps(build_broker(get_settings(), mode).halt(reason), default=str))
 
 
 @app.command("resume")
-def resume() -> None:
-    from advisor.execution.paper_broker import PaperBroker
+def resume(mode: str = typer.Option("alpaca", help="alpaca | paper")) -> None:
+    from advisor.execution.autopilot import build_broker
 
-    console.print_json(json.dumps(PaperBroker(get_settings()).resume(), default=str))
+    console.print_json(json.dumps(build_broker(get_settings(), mode).resume(), default=str))
 
 
 if __name__ == "__main__":
