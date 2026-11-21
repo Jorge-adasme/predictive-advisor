@@ -33,9 +33,16 @@ class YahooMarketDataAdapter(MarketDataAdapter):
             return histories
 
         period_days = max(lookback_days + 40, 120)
+        # Yahoo period strings: days beyond ~700 fall back to multi-year buckets
+        if lookback_days >= 1000:
+            period = "5y"
+        elif lookback_days >= 500:
+            period = "2y"
+        else:
+            period = f"{period_days}d"
         raw = yf.download(
             tickers=downloadable,
-            period=f"{period_days}d",
+            period=period,
             interval="1d",
             group_by="ticker",
             auto_adjust=True,

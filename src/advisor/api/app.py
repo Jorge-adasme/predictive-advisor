@@ -233,6 +233,33 @@ def alpaca_status() -> dict:
     return AlpacaBroker(settings).status()
 
 
+@app.get("/backtest/walk-forward")
+def backtest_walk_forward(
+    lookback: int = Query(default=756, ge=250, le=2000),
+    train: int = Query(default=252, ge=120, le=800),
+    step: int = Query(default=10, ge=5, le=40),
+    horizon: int = Query(default=10, ge=5, le=40),
+    max_positions: int = Query(default=3, ge=1, le=8),
+) -> dict:
+    """Walk-forward out-of-sample (puede tardar ~1–3 min)."""
+    from advisor.backtest.walk_forward import WalkForwardBacktester
+
+    try:
+        result = WalkForwardBacktester(get_settings()).run(
+            lookback_days=lookback,
+            train_bars=train,
+            step_days=step,
+            horizon_days=horizon,
+            max_positions=max_positions,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    payload = result.to_dict()
+    # Respuesta API: trades truncados para no saturar
+    payload["trades"] = payload.get("trades", [])[-50:]
+    return payload
+
+
 @app.get("/live/btg/status")
 def live_btg_status() -> dict:
     from advisor.execution.live_btg import BTGLiveExecutor

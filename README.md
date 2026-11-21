@@ -39,6 +39,9 @@ cp .env.example .env
 # Analizar mercado y ver recomendaciones
 advisor analyze --top 8
 
+# Walk-forward OOS (expectancy real con costos)
+advisor backtest --lookback 756 --train 252 --step 10
+
 # Salida JSON
 advisor json --top 5
 
@@ -119,7 +122,8 @@ meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.m
 - [x] Stub BTG Chile
 - [x] Autopilot paper + portfolio + kill-switch
 - [x] Alpha Engine v2 (ensemble + meta-label + IR)
-- [ ] Backtest walk-forward con costos reales
+- [x] Backtest walk-forward con costos reales (`advisor backtest`)
+
 - [ ] Conector oficial BTG / Finanzas Abiertas
 - [ ] Semi-auto / live con aprobación
 - [ ] Modelos ML entrenados (además del scoring factorial)

@@ -217,5 +217,56 @@ def resume(mode: str = typer.Option("alpaca", help="alpaca | paper")) -> None:
     console.print_json(json.dumps(build_broker(get_settings(), mode).resume(), default=str))
 
 
+@app.command("backtest")
+def backtest(
+    lookback: int = typer.Option(756, help="Días de historia a descargar"),
+    train: int = typer.Option(252, help="Barras mínimas in-sample antes de OOS"),
+    step: int = typer.Option(10, help="Días entre rebalances"),
+    horizon: int = typer.Option(10, help="Horizonte de hold"),
+    max_positions: int = typer.Option(3, help="Máx posiciones por fold"),
+    save: bool = typer.Option(True, help="Guardar JSON en data/"),
+) -> None:
+    """Walk-forward out-of-sample con costos round-trip."""
+    from advisor.backtest.walk_forward import WalkForwardBacktester
+
+    console.print("[cyan]Corriendo walk-forward… esto puede tardar 1–3 min[/cyan]")
+    settings = get_settings()
+    result = WalkForwardBacktester(settings).run(
+        lookback_days=lookback,
+        train_bars=train,
+        step_days=step,
+        horizon_days=horizon,
+        max_positions=max_positions,
+    )
+    summary = {
+        "n_rebalances": result.n_rebalances,
+        "n_trades": result.n_trades,
+        "hit_rate": result.hit_rate,
+        "avg_gross": result.avg_gross,
+        "avg_net": result.avg_net,
+        "expectancy_net": result.expectancy_net,
+        "profit_factor": result.profit_factor,
+        "sharpe_ann": result.sharpe_ann,
+        "max_drawdown": result.max_drawdown,
+        "total_return": result.total_return,
+        "benchmark_return": result.benchmark_return,
+        "excess_return": result.excess_return,
+        "cash_rebalances": result.cash_rebalances,
+        "round_trip_cost_pct": result.round_trip_cost_pct,
+    }
+    console.print("\n[bold]Walk-forward OOS[/bold]")
+    console.print_json(json.dumps(summary, default=str))
+    edge_style = "green" if result.expectancy_net > 0 else "red"
+    console.print(
+        f"\nExpectancy neta/trade: [{edge_style}]{result.expectancy_net:.2%}[/{edge_style}] | "
+        f"Sharpe: {result.sharpe_ann:.2f} | MaxDD: {result.max_drawdown:.2%} | "
+        f"Excess vs SPY: {result.excess_return:.2%}"
+    )
+    if save:
+        path = settings.data_dir / "backtest_walk_forward.json"
+        path.write_text(json.dumps(result.to_dict(), indent=2, default=str))
+        console.print(f"[dim]Guardado: {path}[/dim]")
+
+
 if __name__ == "__main__":
     app()
