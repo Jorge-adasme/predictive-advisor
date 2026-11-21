@@ -1425,11 +1425,11 @@
         // 2) rescanea universo completo
         let data;
         try {
-          data = await fetchAnalyze('/analyze?top_n=40&refresh=true');
+          data = await fetchAnalyze('/analyze?top_n=30&refresh=true');
         } catch (freshErr) {
           // Fallback: servir caché / analyze sin forzar refresh
           try {
-            data = await fetchAnalyze('/analyze?top_n=40&refresh=false');
+            data = await fetchAnalyze('/analyze?top_n=30&refresh=false');
             data.warning = data.warning || freshErr.message;
           } catch {
             throw freshErr;
