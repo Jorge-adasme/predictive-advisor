@@ -40,8 +40,9 @@ class Settings(BaseSettings):
 
     # Noticias mundiales
     news_enabled: bool = True
-    news_cache_ttl_sec: int = Field(default=1200, ge=60, le=7200)
-    news_weight: float = Field(default=0.20, ge=0.0, le=0.5)
+    news_cache_ttl_sec: int = Field(default=900, ge=60, le=7200)
+    news_lookback_days: int = Field(default=14, ge=3, le=30)
+    news_weight: float = Field(default=0.22, ge=0.0, le=0.5)
     news_semantic_weight: float = Field(default=0.55, ge=0.0, le=1.0)
     newsapi_key: str = ""  # opcional https://newsapi.org
 

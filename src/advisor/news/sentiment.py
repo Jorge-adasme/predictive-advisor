@@ -78,6 +78,22 @@ _NEGATIVE = {
     "conflict": -1.2,
     "embargo": -1.4,
     "bearish": -1.3,
+    "scandal": -1.7,
+    "affair": -1.4,
+    "cheating": -1.3,
+    "lawsuit": -1.4,
+    "sued": -1.3,
+    "fraud": -1.8,
+    "indictment": -1.7,
+    "resign": -1.3,
+    "resignation": -1.3,
+    "bribery": -1.6,
+    "harassment": -1.5,
+    "controversy": -1.1,
+    "probe": -1.1,
+    "investigation": -1.2,
+    "allegations": -1.3,
+    "misconduct": -1.5,
     "caída": -1.1,
     "cae": -0.9,
     "guerra": -1.6,
@@ -88,6 +104,10 @@ _NEGATIVE = {
     "crisis": -1.5,
     "desempleo": -1.1,
     "default": -1.8,
+    "escándalo": -1.7,
+    "demanda": -1.3,
+    "fraude": -1.8,
+    "renuncia": -1.3,
 }
 
 # Temas macro → sector / sesgo de régimen
@@ -225,8 +245,21 @@ def urgency_score(text: str) -> float:
         "war",
         "attack",
         "default",
+        "scandal",
+        "fraud",
+        "indictment",
         "última hora",
         "urgente",
+        "escándalo",
     ]
-    hits = sum(1 for k in keys if k in t)
+    hits = sum(1 for k in keys if _phrase_hit(t, k))
     return float(min(1.0, hits / 2.0))
+
+
+def is_governance_risk(text: str) -> bool:
+    t = _normalize(text)
+    keys = [
+        "scandal", "affair", "cheating", "lawsuit", "fraud", "indictment",
+        "resign", "bribery", "harassment", "misconduct", "escándalo", "fraude",
+    ]
+    return any(_phrase_hit(t, k) for k in keys)

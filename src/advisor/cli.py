@@ -69,15 +69,26 @@ def analyze(top: int = typer.Option(8, help="Cantidad por lista (comprar / evita
 
     news = result.get("news") or {}
     headlines = market.get("news_headlines") or news.get("headlines") or []
+    stories = news.get("ticker_stories") or []
+    lookback = news.get("lookback_days", 14)
     console.print(
-        f"\n[bold]Noticias de hoy[/bold] sent={market.get('news_sentiment', news.get('market_sentiment', 0)):+.2f} | "
+        f"\n[bold]Noticias (últimos {lookback}d)[/bold] sent={market.get('news_sentiment', news.get('market_sentiment', 0)):+.2f} | "
         f"urgencia={market.get('news_urgency', news.get('market_urgency', 0)):.2f} | "
         f"titulares={len(headlines)} / total={news.get('n_headlines', len(headlines))}"
     )
+    if stories:
+        console.print("[bold]Impacto por acción[/bold]")
+        for s in stories[:8]:
+            gov = " ⚠️gov" if s.get("governance") else ""
+            console.print(
+                f"  {s.get('ticker')}: factor={s.get('factor', 0):+.2f}{gov} · "
+                f"{str(s.get('headline', ''))[:90]}"
+            )
     if not headlines:
-        console.print("[yellow]Sin titulares en respuesta — prueba: advisor news --refresh[/yellow]")
-    for h in headlines[:8]:
-        console.print(f"  • [{h.get('sentiment', 0):+.2f}] {h.get('title', '')[:120]}")
+        console.print("[yellow]Sin titulares — prueba: advisor news --refresh[/yellow]")
+    for h in headlines[:10]:
+        age = h.get("age_label") or ""
+        console.print(f"  • [{h.get('sentiment', 0):+.2f}] {age} {h.get('title', '')[:110]}")
 
     if result.get("message"):
         style = "green" if result.get("actionable") else "yellow"
@@ -279,14 +290,23 @@ def news_cmd(refresh: bool = typer.Option(False, help="Ignorar cache")) -> None:
     symbols = AdvisoryPipeline(settings).market_data.load_universe()
     pulse = NewsEngine(settings).pulse(symbols, use_cache=not refresh)
     console.print(
-        f"[bold]News pulse[/bold] sent={pulse.market_sentiment:+.2f} "
+        f"[bold]News pulse[/bold] ventana={pulse.lookback_days}d "
+        f"sent={pulse.market_sentiment:+.2f} "
         f"urg={pulse.market_urgency:.2f} bias={pulse.regime_bias:+.2f} "
         f"({pulse.n_headlines} headlines / {pulse.sources_ok} sources)"
     )
     for n in pulse.notes:
         console.print(f"- {n}")
+    if pulse.ticker_stories:
+        console.print("[bold]Impacto por acción[/bold]")
+        for s in pulse.ticker_stories[:10]:
+            gov = " ⚠️gov" if s.get("governance") else ""
+            console.print(
+                f"  {s['ticker']}: {s['factor']:+.2f}{gov} · {str(s.get('headline',''))[:90]}"
+            )
     for h in pulse.headlines[:10]:
-        console.print(f"  • [{h['sentiment']:+.2f}] {h['title'][:120]}")
+        age = h.get("age_label") or ""
+        console.print(f"  • [{h['sentiment']:+.2f}] {age} {h['title'][:110]}")
     if pulse.by_sector:
         console.print_json(
             json.dumps({"by_sector": pulse.by_sector, "by_ticker": pulse.by_ticker}, default=str)

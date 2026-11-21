@@ -570,23 +570,41 @@
       market = market || {};
       const sent = Number(market.news_sentiment ?? news.market_sentiment ?? 0);
       const urg = Number(market.news_urgency ?? news.market_urgency ?? 0);
+      const lookback = Number(news.lookback_days || 14);
       const headlines = market.news_headlines || news.headlines || [];
+      const stories = news.ticker_stories || [];
       const total = Number(news.n_headlines || headlines.length || 0);
-      document.getElementById('newsMeta').textContent =
-        `sent ${sent >= 0 ? '+' : ''}${sent.toFixed(2)} · ${headlines.length}/${total} titulares`;
+      const nm = document.getElementById('newsMeta');
+      if (nm) {
+        nm.textContent = `${lookback}d · sent ${sent >= 0 ? '+' : ''}${sent.toFixed(2)} · ${headlines.length}/${total}`;
+      }
       const card = document.getElementById('newsCard');
-      if (!headlines.length) {
-        const tip = (news.notes && news.notes[0]) || 'Sin titulares. Prueba Actualizar o advisor news --refresh.';
-        card.innerHTML = `<div class="empty">${tip}</div>`;
+      if (!card) return;
+      if (!headlines.length && !stories.length) {
+        const tip = (news.notes && news.notes[0]) || 'Sin titulares. Toca Actualizar.';
+        card.innerHTML = `<div class="empty">${esc(tip)}</div>`;
         return;
       }
+      const storyHtml = stories.length ? `
+        <div class="meta" style="margin-top:10px"><strong>Impacto por acción</strong> (eventos recientes, no solo hoy)</div>
+        ${stories.slice(0,8).map(s => `
+          <div class="idea">
+            <div class="row" style="justify-content:space-between">
+              <div class="ticker">${esc(s.ticker)}</div>
+              <span class="pill ${Number(s.factor||0)>=0?'buy':'avoid'}">${Number(s.factor||0)>=0?'+':''}${Number(s.factor||0).toFixed(2)}</span>
+            </div>
+            <div class="meta">${esc(s.headline || '')}</div>
+            <div class="meta">${s.governance ? '⚠️ riesgo gobernanza/CEO · ' : ''}hace ${(Number(s.age_hours||0)/24).toFixed(1)}d</div>
+          </div>`).join('')}` : '';
       card.innerHTML = `
-        <div class="meta">Titulares de hoy (BBC/CNBC/Fed/Yahoo). Empujan régimen y scores.</div>
+        <div class="meta">Situación actual · ventana ${lookback} días (Google/Yahoo/BBC/CNBC/Fed). Un escándalo de hace una semana sí cuenta.</div>
         <div class="mini-grid">
           <div class="mini"><div class="k">Sentimiento</div><div class="v" style="color:${sent>=0?'var(--green)':'var(--red)'}">${sent>=0?'+':''}${sent.toFixed(2)}</div></div>
           <div class="mini"><div class="k">Urgencia</div><div class="v">${urg.toFixed(2)}</div></div>
         </div>
-        <ul>${headlines.slice(0,8).map(h => `<li><strong style="color:${Number(h.sentiment||0)>=0?'var(--green)':'var(--red)'}">[${Number(h.sentiment||0)>=0?'+':''}${Number(h.sentiment||0).toFixed(2)}]</strong> ${h.title}</li>`).join('')}</ul>`;
+        ${storyHtml}
+        <div class="meta" style="margin-top:12px"><strong>Titulares recientes</strong></div>
+        <ul>${headlines.slice(0,12).map(h => `<li><strong style="color:${Number(h.sentiment||0)>=0?'var(--green)':'var(--red)'}">[${Number(h.sentiment||0)>=0?'+':''}${Number(h.sentiment||0).toFixed(2)}]</strong> <span class="meta">${esc(h.age_label || '')}</span> ${esc(h.title || '')}</li>`).join('')}</ul>`;
     }
 
     function esc(s) {

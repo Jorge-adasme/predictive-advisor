@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Iterable
+from urllib.parse import quote_plus
 
 import httpx
 
@@ -13,8 +14,13 @@ RSS_FEEDS = [
     ("BBC Business", "https://feeds.bbci.co.uk/news/business/rss.xml"),
     ("CNBC Top", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"),
     ("CNBC World", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362"),
+    ("CNBC Finance", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"),
     ("MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
     ("Fed Press", "https://www.federalreserve.gov/feeds/press_all.xml"),
+    (
+        "Google Markets",
+        "https://news.google.com/rss/search?q=stock%20market%20OR%20Wall%20Street%20OR%20Federal%20Reserve%20when:14d&hl=en-US&gl=US&ceid=US:en",
+    ),
 ]
 
 
@@ -25,6 +31,7 @@ class RawHeadline:
     source: str
     url: str
     published: datetime | None
+    tickers: tuple[str, ...] = ()
 
 
 def _parse_date(value: str | None) -> datetime | None:
@@ -49,7 +56,17 @@ def _local(tag: str) -> str:
     return tag
 
 
-def parse_rss(xml_text: str, source: str) -> list[RawHeadline]:
+def re_strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", " ", text or "").strip()
+
+
+def parse_rss(
+    xml_text: str,
+    source: str,
+    *,
+    tickers: tuple[str, ...] = (),
+    limit: int = 40,
+) -> list[RawHeadline]:
     out: list[RawHeadline] = []
     try:
         root = ET.fromstring(xml_text)
@@ -57,7 +74,7 @@ def parse_rss(xml_text: str, source: str) -> list[RawHeadline]:
         return out
 
     items = [el for el in root.iter() if _local(el.tag) in {"item", "entry"}]
-    for item in items[:25]:
+    for item in items[:limit]:
         title = ""
         summary = ""
         link = ""
@@ -81,18 +98,15 @@ def parse_rss(xml_text: str, source: str) -> list[RawHeadline]:
                     source=source,
                     url=link,
                     published=published,
+                    tickers=tickers,
                 )
             )
     return out
 
 
-def re_strip_html(text: str) -> str:
-    return re.sub(r"<[^>]+>", " ", text or "").strip()
-
-
-def fetch_rss_headlines(timeout: float = 8.0) -> list[RawHeadline]:
+def fetch_rss_headlines(timeout: float = 10.0) -> list[RawHeadline]:
     headlines: list[RawHeadline] = []
-    headers = {"User-Agent": "predictive-advisor/0.2 (+research; non-commercial)"}
+    headers = {"User-Agent": "predictive-advisor/0.3 (+research; non-commercial)"}
     with httpx.Client(timeout=timeout, headers=headers, follow_redirects=True) as client:
         for source, url in RSS_FEEDS:
             try:
@@ -105,7 +119,57 @@ def fetch_rss_headlines(timeout: float = 8.0) -> list[RawHeadline]:
     return headlines
 
 
-def fetch_yahoo_ticker_news(tickers: Iterable[str], limit_per: int = 4) -> list[RawHeadline]:
+def fetch_google_ticker_news(
+    symbols: list[tuple[str, str]],
+    *,
+    lookback_days: int = 14,
+    timeout: float = 10.0,
+    max_symbols: int = 25,
+) -> list[RawHeadline]:
+    """Noticias recientes por compañía vía Google News RSS (sin API key)."""
+    out: list[RawHeadline] = []
+    headers = {"User-Agent": "predictive-advisor/0.3 (+research; non-commercial)"}
+    with httpx.Client(timeout=timeout, headers=headers, follow_redirects=True) as client:
+        for ticker, name in list(symbols)[:max_symbols]:
+            q = f'("{name}" OR {ticker}) (stock OR shares OR CEO OR earnings) when:{lookback_days}d'
+            url = (
+                "https://news.google.com/rss/search?q="
+                + quote_plus(q)
+                + "&hl=en-US&gl=US&ceid=US:en"
+            )
+            try:
+                resp = client.get(url)
+                if resp.status_code != 200:
+                    continue
+                items = parse_rss(
+                    resp.text,
+                    source=f"Google:{ticker}",
+                    tickers=(ticker,),
+                    limit=8,
+                )
+                for it in items:
+                    # Prefijo para UI
+                    title = it.title if it.title.startswith("[") else f"[{ticker}] {it.title}"
+                    out.append(
+                        RawHeadline(
+                            title=title,
+                            summary=it.summary,
+                            source=it.source,
+                            url=it.url,
+                            published=it.published,
+                            tickers=(ticker,),
+                        )
+                    )
+            except Exception:
+                continue
+    return out
+
+
+def fetch_yahoo_ticker_news(
+    tickers: Iterable[str],
+    limit_per: int = 8,
+    max_tickers: int = 35,
+) -> list[RawHeadline]:
     """Noticias por ticker vía yfinance (best-effort)."""
     out: list[RawHeadline] = []
     try:
@@ -113,18 +177,14 @@ def fetch_yahoo_ticker_news(tickers: Iterable[str], limit_per: int = 4) -> list[
     except Exception:
         return out
 
-    for ticker in list(tickers)[:20]:
+    for ticker in list(tickers)[:max_tickers]:
         try:
             items = yf.Ticker(ticker).news or []
         except Exception:
             continue
         for item in items[:limit_per]:
             content = item.get("content") if isinstance(item.get("content"), dict) else {}
-            title = (
-                item.get("title")
-                or content.get("title")
-                or ""
-            )
+            title = item.get("title") or content.get("title") or ""
             summary = item.get("summary") or content.get("summary") or ""
             link = ""
             if isinstance(item.get("link"), str):
@@ -145,6 +205,7 @@ def fetch_yahoo_ticker_news(tickers: Iterable[str], limit_per: int = 4) -> list[
                         source=f"Yahoo:{ticker}",
                         url=str(link),
                         published=pub,
+                        tickers=(ticker,),
                     )
                 )
     return out

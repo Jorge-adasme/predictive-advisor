@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from advisor.news.feeds import parse_rss
-from advisor.news.sentiment import detect_sectors, detect_tickers, score_text, urgency_score
+from advisor.news.sentiment import (
+    detect_sectors,
+    detect_tickers,
+    is_governance_risk,
+    score_text,
+    urgency_score,
+)
 from advisor.news.engine import NewsPulse
 
 
@@ -49,3 +55,8 @@ def test_news_pulse_factor_blend():
     )
     f = pulse.factor_for("AAPL", "Tech")
     assert f > 0.4
+
+
+def test_governance_scandal_detected():
+    assert is_governance_risk("NVIDIA CEO scandal and cheating allegations rock the company")
+    assert score_text("CEO fraud investigation and lawsuit") < 0
