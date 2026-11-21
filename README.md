@@ -7,9 +7,9 @@ Flujo actual (v0.4):
 1. Analiza régimen + noticias (14d) + earnings blackout
 2. Scorea universo (Alpaca US / Chile)
 3. Estima probabilidad / retorno / edge neto tras costos
-4. **IA decide** buy/hold/avoid y puede vetar el autopilot
-5. Autopilot con stops, trailing, diversificación y kill-switch
-6. **Auditoría + performance + checklist** de sistema (paper-first)
+4. Autopilot con stops, trailing, diversificación y kill-switch
+5. **Auditoría + performance + checklist** de sistema (paper-first)
+6. *(Opcional, OFF por ahora)* capa IA de decisión — se reactiva más adelante
 
 > No garantiza rentabilidad. No es asesoría financiera regulada. Opera primero en paper.
 
@@ -46,9 +46,6 @@ advisor backtest --lookback 756 --train 252 --step 10
 # Pulso de noticias mundiales (afecta régimen + scores)
 advisor news
 
-# Capa IA: decide buy/hold/avoid sobre el análisis cuantitativo
-advisor ai-decide --top 10
-
 # Confianza operativa
 advisor system-status
 advisor performance --mode paper
@@ -78,7 +75,7 @@ uvicorn advisor.api.app:app --reload --port 8000
 
 Dashboard web (`/`): responsive para **iPhone** (dock inferior + safe-area) y **escritorio** (2 columnas + acciones en el header).
 
-**Tiempo real:** el panel usa SSE (`/live/stream`) o polling (`/live`) cada ~8s para equity/posiciones, y re-analiza cuant+IA cada ~2 min.
+**Tiempo real:** el panel usa SSE (`/live/stream`) o polling (`/live`) cada ~8s para equity/posiciones, y re-analiza el cuant cada ~2 min.
 
 Endpoints:
 
@@ -87,23 +84,21 @@ Endpoints:
 - `GET /system/status`
 - `GET /performance`
 - `GET /audit`
-- `GET /analyze?top_n=8`
-- `GET /ai/decisions?top_n=10`
+- `GET /analyze?top_n=30`
 - `GET /btg/status`
 - `POST /decisions` `{ "ticker": "CHILE.SN", "decision": "accepted" }`
 - `GET /journal`
 
-## Capa de IA (decidir ≠ ejecutar)
+## Capa de IA (desactivada por ahora)
 
-El motor cuantitativo propone. La **IA decide** (`buy` / `hold` / `avoid` + `approve_trade`).
-El autopilot **solo compra** si la IA aprueba (cuando `ADVISOR_AI_GATE_AUTOPILOT=true`).
+El código de decisión IA está en el repo (`docs/AI_DECISION_LAYER.md`) pero **OFF** por defecto:
 
-| Provider | Requisito | Uso |
-|----------|-----------|-----|
-| `local` (default) | ninguno | comité explicable siempre ON |
-| `openai` / `anthropic` | `ADVISOR_AI_API_KEY` | LLM opcional; fallback a local |
+```bash
+ADVISOR_AI_ENABLED=false
+ADVISOR_AI_GATE_AUTOPILOT=false
+```
 
-Detalle: [`docs/AI_DECISION_LAYER.md`](docs/AI_DECISION_LAYER.md)
+Hoy decide solo el **motor cuantitativo** (edge, stops, rotación, kill-switch). Se puede reactivar más adelante.
 
 ## Qué decide el sistema
 
@@ -165,16 +160,17 @@ meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.m
 - [x] v2.1: partial TP, time-stop, diversificación sectorial
 - [x] Factor de noticias mundiales (RSS + Yahoo) en predicción/régimen
 - [x] v3: sentimiento semántico TF-IDF + NewsAPI opcional + earnings blackout
-- [x] Capa IA de decisión (local committee + OpenAI/Anthropic opcional) con gate de autopilot
 - [x] UI responsive iPhone + escritorio
 - [x] Capa de confianza: system status, performance, audit log, trust bar
 - [x] Stop duro por activo + kill-switch en modo rotación
 - [x] Universo Alpaca ampliado (~230 tickers líquidos USA + ETFs)
+- [x] Capa IA implementada pero **desactivada** (reactivar con `ADVISOR_AI_ENABLED=true`)
 
 - [ ] Auth de usuario / sesiones
 - [ ] Notificaciones (email/push) de fills y kill-switch
+- [ ] Reactivar / afinar capa IA de decisión
 - [ ] Conector oficial BTG / Finanzas Abiertas
-- [ ] Semi-auto / live con aprobación humana + IA
+- [ ] Semi-auto / live con aprobación humana
 - [ ] Modelos ML entrenados (además del scoring factorial)
 - [ ] Reportes exportables (CSV/PDF) para compliance personal
 

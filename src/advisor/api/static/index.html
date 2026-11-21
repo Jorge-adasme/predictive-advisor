@@ -725,6 +725,7 @@
           </div>
         </div>
 
+        <!-- Capa IA oculta por ahora (ADVISOR_AI_ENABLED=false). Se reactiva más adelante.
         <div class="section" data-section="ia">
           <div class="section-title" role="button" tabindex="0" aria-expanded="true">
             <div class="left"><span class="chev">▾</span><span class="label">Decisión IA</span></div>
@@ -734,11 +735,12 @@
             <div class="card" id="aiCard"><div class="empty">La IA revisará el análisis cuantitativo…</div></div>
           </div>
         </div>
+        -->
       </div>
     </div>
 
     <p class="footer-note" id="disclaimerNote">
-      Herramienta de apoyo a la decisión. Paper-first. No es asesoría financiera regulada ni garantiza rentabilidad.
+      Motor cuantitativo + riesgo (stops, rotación, kill-switch). Sin capa IA por ahora. Paper-first. No garantiza rentabilidad.
     </p>
   </div>
 
@@ -759,7 +761,7 @@
       auditoria: false,
       evitar: true,
       oportunidades: true,
-      ia: true,
+      // ia: oculto por ahora
     };
 
     function loadCollapseState() {
@@ -870,9 +872,10 @@
         cls: sys.ready && !h.halted ? 'ok' : 'danger',
         text: h.halted ? 'Kill-switch ON' : (sys.ready ? 'Sistema listo' : 'Sistema degradado'),
       });
+      const aiCheck = (sys.checks || []).find(c => c.name === 'ai_layer');
       chips.push({
         cls: 'ok',
-        text: `IA ${(sys.checks || []).find(c => c.name === 'ai_layer')?.detail || 'local'}`.slice(0, 42),
+        text: (aiCheck?.detail || 'IA off').slice(0, 42),
       });
       chips.push({
         cls: (perf.exposure_pct || 0) > 0.85 ? 'warn' : 'ok',
@@ -1196,7 +1199,7 @@
       const am = document.getElementById('avoidMeta');
       if (am) am.textContent = `${avoids.length} evitar`;
       renderNewsPayload(result.news, market);
-      renderAiDecisions(result);
+      // renderAiDecisions(result); // IA desactivada por ahora
 
       const ideasCard = document.getElementById('ideasCard');
       const avoidCard = document.getElementById('avoidCard');

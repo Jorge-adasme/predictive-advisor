@@ -157,8 +157,12 @@ class SystemStatus:
         )
         add(
             "ai_layer",
-            bool(s.ai_enabled),
-            f"provider={s.ai_provider} · gate={s.ai_gate_autopilot}",
+            True,  # OFF a propósito no es fallo del sistema
+            (
+                f"desactivada (más adelante)"
+                if not s.ai_enabled
+                else f"provider={s.ai_provider} · gate={s.ai_gate_autopilot}"
+            ),
         )
         add(
             "news",

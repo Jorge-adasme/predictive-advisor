@@ -90,13 +90,13 @@ class Settings(BaseSettings):
     btg_account_id: str = ""
     btg_live_token: str = ""
 
-    # IA de decisión (encima del motor cuantitativo)
-    ai_enabled: bool = True
+    # IA de decisión (desactivada por ahora; se reactiva más adelante)
+    ai_enabled: bool = False
     ai_provider: str = "local"  # local | openai | anthropic
     ai_api_key: str = ""
     ai_model: str = ""  # vacío = default del provider
     ai_base_url: str = "https://api.openai.com/v1"
-    ai_gate_autopilot: bool = True  # si True, autopilot solo compra con approve_trade
+    ai_gate_autopilot: bool = False  # solo aplica si ai_enabled=true
 
     # Tiempo real (UI)
     live_enabled: bool = True

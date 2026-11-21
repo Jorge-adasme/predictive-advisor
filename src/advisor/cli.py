@@ -358,7 +358,13 @@ def performance_cmd(mode: str = typer.Option("alpaca", help="alpaca|paper")) -> 
 
 @app.command("ai-decide")
 def ai_decide(top: int = typer.Option(10, help="Ideas a evaluar con IA")) -> None:
-    """Capa de IA: decide buy/hold/avoid sobre el análisis cuantitativo."""
+    """Capa de IA (OFF por defecto). Reactivar con ADVISOR_AI_ENABLED=true."""
+    if not get_settings().ai_enabled:
+        console.print(
+            "[yellow]IA desactivada[/yellow] (ADVISOR_AI_ENABLED=false). "
+            "Hoy solo corre el motor cuantitativo."
+        )
+        raise typer.Exit(code=0)
     result = AdvisoryPipeline().analyze(top_n=top)
     if result.get("error"):
         console.print(f"[red]{result['error']}[/red]")

@@ -1,5 +1,8 @@
 # Capa de IA para decisiones
 
+> **Estado actual: DESACTIVADA** (`ADVISOR_AI_ENABLED=false`).  
+> El código permanece listo; se reactivará más adelante. Hoy decide solo el cuant.
+
 ## Idea
 La automatización ejecuta. La **IA decide**.
 
