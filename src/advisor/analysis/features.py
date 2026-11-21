@@ -74,6 +74,36 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     # Reversal corto (contrarian 5d) para no perseguir extremos
     out["reversal_5d"] = -out["ret_5d"]
 
+    # Momentum clásico 12-1 (252d menos último mes) — menos ruido de mean-reversion
+    out["mom_12_1"] = close.shift(21) / close.shift(252) - 1
+
+    # Momentum vol-scaled (más comparable cross-section)
+    out["mom_vol_scaled"] = out["momentum"] / out["volatility_20d"].replace(0, np.nan)
+
+    # Distancia a máximo 252d (breakout vs exhausted)
+    roll_max = close.rolling(252).max()
+    out["dist_52w_high"] = close / roll_max - 1
+
+    # Cola de riesgo: skewness negativa = más crash risk
+    out["ret_skew_60"] = out["ret_1d"].rolling(60).skew()
+
+    # Illiquidity Amihud-lite
+    out["amihud"] = (out["ret_1d"].abs() / volume.replace(0, np.nan)).rolling(20).mean()
+
+    # MACD hist (12/26/9)
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema26 = close.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+    out["macd_hist"] = (macd - signal) / close
+
+    # Bollinger %b
+    mid = out["sma_20"]
+    std20 = close.rolling(20).std()
+    upper = mid + 2 * std20
+    lower = mid - 2 * std20
+    out["bb_pctb"] = (close - lower) / (upper - lower).replace(0, np.nan)
+
     return out
 
 
@@ -127,6 +157,10 @@ def latest_feature_row(
         "atr_pct",
         "adx_14",
         "reversal_5d",
+        "mom_12_1",
+        "mom_vol_scaled",
+        "dist_52w_high",
+        "macd_hist",
     ]
     featured = featured.dropna(subset=[c for c in required if c in featured.columns])
     if featured.empty:

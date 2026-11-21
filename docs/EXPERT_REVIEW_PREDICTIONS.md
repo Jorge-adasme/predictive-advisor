@@ -1,31 +1,31 @@
-# Revisión experta del motor predictivo (pre-Alpaca)
+# Revisión experta del motor predictivo
 
-## Diagnóstico del MVP actual
+## Estado actual: Alpha Engine v2
 
-El sistema actual es un **score heurístico técnico**. Útil como base, pero todavía no es un predictor calibrado.
+El motor ya no es solo un score heurístico. Incorpora ensemble, calibración Bayesiana,
+meta-labeling y ranking por Information Ratio. Detalle: [`QUANT_ALPHA_V2.md`](QUANT_ALPHA_V2.md).
 
-### Debilidades principales
-1. `probability_up` no está calibrada con frecuencia real histórica.
-2. `expected_return` es una transformación lineal del score (no estimada).
-3. No mide **alpha** vs benchmark (solo momentum absoluto).
-4. No hay ranking **cross-sectional** (comparar vs el universo del día).
-5. Stops basados en vol del benchmark, no en ATR del activo.
-6. Falta filtro de liquidez/microestructura.
-7. No hay validación walk-forward / out-of-sample formal.
-8. Sin fundamentals (earnings surprise, valuation) ni alternative data.
+### Debilidades del MVP original (cerradas en v2)
+1. ~~`probability_up` no calibrada~~ → hit-rate empírico + shrinkage.
+2. ~~`expected_return` lineal del score~~ → blend heurístico + E[r] shrunk + vol targeting.
+3. ~~Sin alpha vs benchmark~~ → residual / relative strength.
+4. ~~Sin ranking cross-sectional~~ → rank por score/E[r]/IR/meta + sector.
+5. ~~Stops por vol benchmark~~ → ATR del activo + RR mínimo.
+6. ~~Sin filtro liquidez~~ → Amihud-lite + volume z.
+7. Walk-forward formal → **pendiente v3**.
+8. Fundamentals / alt-data → **pendiente v3**.
 
-## Qué implementamos ahora (mayor ROI)
-1. Features avanzadas: ATR, trend quality, gap, liquidez, multi-horizon momentum.
-2. Relative strength / residual vs benchmark.
-3. Calibración empírica rolling (hit-rate y E[r] histórico por señal).
-4. Ranking cross-sectional del universo.
-5. Stops/targets por ATR + mínimo reward/risk.
-6. Penalización por sobreextensión y baja liquidez.
+### Qué quedó implementado (v2)
+1. Features cuant: mom 12-1, vol-scaled mom, 52w, skew, Amihud, MACD, BB %b.
+2. Ensemble de 3 sleeves (trend / residual alpha / defensive) con pesos por régimen.
+3. Calibración: recency weights, IC Spearman, shrinkage Bayesiano, meta-label.
+4. Ranking IR + meta-label + diversificación sectorial suave.
+5. Risk gates: meta, IC, IR, edge neto, ATR stops.
 
-## Qué falta después (fase Alpaca)
-1. Walk-forward backtest con costos Alpaca reales.
-2. Modelo ML (LightGBM) entrenado out-of-sample.
-3. Meta-labeling (operar solo cuando el modelo de confianza confirma).
-4. Control de correlación de portafolio.
-5. Event risk (earnings calendar) para USA.
-6. Ejecución Alpaca paper → live.
+### Próxima frontera (v3)
+1. Walk-forward backtest con costos reales (Alpaca/BTG).
+2. LightGBM + purged cross-validation.
+3. Neutralización sectorial explícita.
+4. Optimización transaction-cost-aware.
+5. Event risk (earnings) USA.
+6. Control de correlación de portafolio.

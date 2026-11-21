@@ -17,8 +17,11 @@ def build_trade_plan(
     calib_q = float(prediction.factors.get("calibration_quality", 0.0))
     atr_pct = float(prediction.factors.get("atr_pct", 0.02) or 0.02)
     cs = float(prediction.factors.get("cross_sectional_z", 0.0))
+    meta = float(prediction.factors.get("meta_label_prob", 0.0))
+    ic = float(prediction.factors.get("ic_spearman", 0.0))
+    ir_proxy = float(prediction.factors.get("ir_proxy", 0.0))
 
-    # Filtros duros de certeza
+    # Filtros duros de certeza (capa cuantitativa)
     if prediction.probability_up < 0.54 and gross > 0:
         return None
     if edge_net < settings.min_edge_net_pct:
@@ -37,6 +40,12 @@ def build_trade_plan(
             edge_net,
             "Hit-rate empírico bajo en señales similares.",
         )
+    if meta > 0 and meta < 0.50:
+        return _avoid_plan(prediction, edge_net, "Meta-label rechaza la operación.")
+    if ic < -0.02 and calib_q >= 0.2:
+        return _avoid_plan(prediction, edge_net, "IC histórico negativo para este signal.")
+    if ir_proxy < 0.15 and gross > 0:
+        return _avoid_plan(prediction, edge_net, "IR proxy insuficiente (retorno/riesgo).")
     if cs < -0.6:
         return _avoid_plan(
             prediction,
@@ -69,17 +78,20 @@ def build_trade_plan(
     elif market.regime == Regime.RISK_ON:
         raw_pct *= 1.0
 
-    # Confianza + calidad de calibración + ranking
-    raw_pct *= 0.65 + 0.25 * prediction.confidence + 0.10 * max(cs, 0)
+    # Confianza + meta-label + ranking + IR
+    raw_pct *= 0.55 + 0.20 * prediction.confidence + 0.15 * max(meta, 0) + 0.10 * max(cs, 0)
     if atr_pct > 0.045:
         raw_pct *= 0.75
+    if ir_proxy > 0.8:
+        raw_pct *= 1.08
     position_pct = float(min(settings.max_position_pct, max(0.01, raw_pct)))
 
-    # Umbral BUY más estricto: score + probabilidad + edge
+    # Umbral BUY más estricto: score + probabilidad + edge + meta
     buy = (
         prediction.score >= 0.32
         and prediction.probability_up >= 0.55
         and edge_net >= settings.min_edge_net_pct
+        and (meta <= 0 or meta >= 0.55)
     )
     action = Action.BUY if buy else Action.HOLD
 

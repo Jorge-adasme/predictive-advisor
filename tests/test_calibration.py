@@ -28,9 +28,11 @@ def _hist(n=300, drift=0.001):
 
 
 def test_calibration_returns_fields():
-    out = calibrate_from_history(_hist(), horizon_days=10)
+    out = calibrate_from_history(_hist(n=400), horizon_days=10)
     assert "empirical_expected_return" in out
     assert "empirical_hit_rate" in out
+    assert "meta_label_prob" in out
+    assert "er_shrunk" in out
     assert out["sample_size"] >= 0
 
 

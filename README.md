@@ -107,12 +107,18 @@ Reglas de protección:
 
 > No garantiza ganancias. Live en BTG requiere API/partner oficial.
 
+## Motor predictivo
+
+Alpha Engine **v2**: ensemble (trend/alpha/defensive), calibración Bayesiana,
+meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.md).
+
 ## Roadmap
 
 - [x] MVP análisis + predicción + risk filter
 - [x] CLI + API + journal
 - [x] Stub BTG Chile
 - [x] Autopilot paper + portfolio + kill-switch
+- [x] Alpha Engine v2 (ensemble + meta-label + IR)
 - [ ] Backtest walk-forward con costos reales
 - [ ] Conector oficial BTG / Finanzas Abiertas
 - [ ] Semi-auto / live con aprobación
