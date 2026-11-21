@@ -16,9 +16,39 @@ app = typer.Typer(help="Predictive Investment Advisor (Chile / BTG-ready)")
 console = Console()
 
 
+def _print_rec_table(title: str, rows: list[dict]) -> None:
+    table = Table(title=title)
+    table.add_column("#", justify="right")
+    table.add_column("Ticker")
+    table.add_column("Acción")
+    table.add_column("Prob↑", justify="right")
+    table.add_column("E[r]", justify="right")
+    table.add_column("News", justify="right")
+    table.add_column("Edge", justify="right")
+    table.add_column("Motivo")
+    for rec in rows:
+        pred = rec["prediction"]
+        plan = rec["plan"]
+        nf = float((pred.get("factors") or {}).get("news_factor") or 0)
+        why = plan.get("invalidation") or ""
+        if pred.get("risks"):
+            why = pred["risks"][0]
+        table.add_row(
+            str(rec["rank"]),
+            pred["ticker"],
+            plan["action"],
+            f"{pred['probability_up']:.0%}",
+            f"{pred['expected_return']:.2%}",
+            f"{nf:+.2f}",
+            f"{plan['edge_net_pct']:.2%}",
+            why[:48],
+        )
+    console.print(table)
+
+
 @app.command("analyze")
-def analyze(top: int = typer.Option(8, help="Cantidad de recomendaciones")) -> None:
-    """Analiza mercado Chile y genera recomendaciones predictivas."""
+def analyze(top: int = typer.Option(8, help="Cantidad por lista (comprar / evitar)")) -> None:
+    """Analiza mercado: qué comprar Y qué NO invertir."""
     pipeline = AdvisoryPipeline()
     result = pipeline.analyze(top_n=top)
 
@@ -37,63 +67,40 @@ def analyze(top: int = typer.Option(8, help="Cantidad de recomendaciones")) -> N
     for note in market.get("notes", []):
         console.print(f"- {note}")
 
-    if market.get("news_sentiment") is not None:
-        console.print(
-            f"\n[bold]Noticias[/bold] sent={market.get('news_sentiment', 0):+.2f} | "
-            f"urgencia={market.get('news_urgency', 0):.2f} | "
-            f"bias régimen={market.get('news_regime_bias', 0):+.2f}"
-        )
-        for h in (market.get("news_headlines") or [])[:5]:
-            console.print(
-                f"  • [{h.get('sentiment', 0):+.2f}] {h.get('title', '')[:110]}"
-            )
+    news = result.get("news") or {}
+    headlines = market.get("news_headlines") or news.get("headlines") or []
+    console.print(
+        f"\n[bold]Noticias de hoy[/bold] sent={market.get('news_sentiment', news.get('market_sentiment', 0)):+.2f} | "
+        f"urgencia={market.get('news_urgency', news.get('market_urgency', 0)):.2f} | "
+        f"titulares={len(headlines)} / total={news.get('n_headlines', len(headlines))}"
+    )
+    if not headlines:
+        console.print("[yellow]Sin titulares en respuesta — prueba: advisor news --refresh[/yellow]")
+    for h in headlines[:8]:
+        console.print(f"  • [{h.get('sentiment', 0):+.2f}] {h.get('title', '')[:120]}")
 
     if result.get("message"):
         style = "green" if result.get("actionable") else "yellow"
         console.print(f"\n[{style}]{result['message']}[/{style}]")
 
-    table = Table(title="Ranking / Recomendaciones")
-    table.add_column("#", justify="right")
-    table.add_column("Ticker")
-    table.add_column("Acción")
-    table.add_column("Prob↑", justify="right")
-    table.add_column("E[r]", justify="right")
-    table.add_column("Edge neto", justify="right")
-    table.add_column("Pos %", justify="right")
-    table.add_column("Entrada", justify="right")
-    table.add_column("Stop", justify="right")
-    table.add_column("Stop%", justify="right")
-    table.add_column("Target", justify="right")
+    buys = result.get("actionable") or []
+    avoids = result.get("do_not_invest") or []
+    if buys:
+        _print_rec_table("Para INVERTIR (edge neto)", buys)
+    else:
+        console.print("\n[yellow]Para invertir: ninguna idea con edge suficiente.[/yellow]")
 
-    for rec in result["recommendations"]:
-        pred = rec["prediction"]
-        plan = rec["plan"]
-        table.add_row(
-            str(rec["rank"]),
-            pred["ticker"],
-            plan["action"],
-            f"{pred['probability_up']:.0%}",
-            f"{pred['expected_return']:.2%}",
-            f"{plan['edge_net_pct']:.2%}",
-            f"{plan['position_pct']:.1%}",
-            f"{plan['entry_price']:.2f}",
-            f"{plan['stop_price']:.2f}",
-            f"{float(plan.get('stop_pct') or 0):.1%}",
-            f"{plan['target_price']:.2f}",
-        )
-
-    console.print(table)
-
-    if result["recommendations"]:
-        top_rec = result["recommendations"][0]
-        console.print("\n[bold]Detalle #1[/bold]")
-        console.print(f"{top_rec['prediction']['name']} ({top_rec['prediction']['ticker']})")
-        for reason in top_rec["prediction"]["reasons"]:
-            console.print(f"[green]+[/green] {reason}")
-        for risk in top_rec["prediction"]["risks"]:
-            console.print(f"[yellow]![/yellow] {risk}")
-        console.print(f"Invalidación: {top_rec['plan']['invalidation']}")
-        console.print(f"[dim]{top_rec['disclaimer']}[/dim]")
+    if avoids:
+        _print_rec_table("Para NO invertir (evitar)", avoids)
+        console.print("\n[bold]Por qué evitar (top)[/bold]")
+        for rec in avoids[:5]:
+            pred = rec["prediction"]
+            plan = rec["plan"]
+            console.print(f"[red]{pred['ticker']}[/red] — {plan.get('invalidation', '')}")
+            for risk in (pred.get("risks") or [])[:2]:
+                console.print(f"  ! {risk}")
+    else:
+        console.print("\n[dim]Lista de evitar vacía.[/dim]")
 
     console.print(
         f"\nEscaneados: {result['scanned']} | "
@@ -117,10 +124,12 @@ def accept(
     settings = get_settings()
     pipeline = AdvisoryPipeline(settings)
     result = pipeline.analyze(top_n=settings.top_n)
+    pool = result.get("recommendations") or []
+    pool = pool + (result.get("do_not_invest") or []) + (result.get("actionable") or [])
     match = next(
         (
             Recommendation.model_validate(item)
-            for item in result["recommendations"]
+            for item in pool
             if item["prediction"]["ticker"].upper() == ticker.upper()
         ),
         None,
@@ -276,7 +285,9 @@ def news_cmd(refresh: bool = typer.Option(False, help="Ignorar cache")) -> None:
     for h in pulse.headlines[:10]:
         console.print(f"  • [{h['sentiment']:+.2f}] {h['title'][:120]}")
     if pulse.by_sector:
-        console.print_json(json.dumps({"by_sector": pulse.by_sector, "by_ticker": pulse.by_ticker}, default=str))
+        console.print_json(
+            json.dumps({"by_sector": pulse.by_sector, "by_ticker": pulse.by_ticker}, default=str)
+        )
 
 
 @app.command("backtest")

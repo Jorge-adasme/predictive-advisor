@@ -284,11 +284,14 @@
   <div class="section-title">Movimientos <span>últimos</span></div>
   <div class="card" id="movesCard"><div class="empty">Cuando el bot opere, verás aquí cada movimiento.</div></div>
 
-  <div class="section-title">Noticias mundiales <span id="newsMeta">—</span></div>
-  <div class="card" id="newsCard"><div class="empty">Se cargan al analizar el mercado.</div></div>
+  <div class="section-title">Noticias de hoy <span id="newsMeta">—</span></div>
+  <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
 
-  <div class="section-title">Ideas de hoy <span id="ideasMeta">—</span></div>
+  <div class="section-title">Para invertir <span id="ideasMeta">—</span></div>
   <div class="card" id="ideasCard"><div class="empty">Toca “Analizar” para ver oportunidades.</div></div>
+
+  <div class="section-title">No invertir / evitar <span id="avoidMeta">—</span></div>
+  <div class="card" id="avoidCard"><div class="empty">Aquí verás activos a evitar y el motivo.</div></div>
 
   <p class="footer-note">
     Este dashboard busca claridad, no promesas. El autopilot solo opera cuando estima ventaja después de costos.
@@ -404,67 +407,78 @@
       }
     }
 
-    function renderNews(result) {
-      const market = result.market || {};
-      const news = result.news || {};
+    function renderNewsPayload(news, market) {
+      news = news || {};
+      market = market || {};
       const sent = Number(market.news_sentiment ?? news.market_sentiment ?? 0);
       const urg = Number(market.news_urgency ?? news.market_urgency ?? 0);
       const headlines = market.news_headlines || news.headlines || [];
+      const total = Number(news.n_headlines || headlines.length || 0);
       document.getElementById('newsMeta').textContent =
-        `sent ${sent >= 0 ? '+' : ''}${sent.toFixed(2)} · urg ${urg.toFixed(2)}`;
+        `sent ${sent >= 0 ? '+' : ''}${sent.toFixed(2)} · ${headlines.length}/${total} titulares`;
       const card = document.getElementById('newsCard');
       if (!headlines.length) {
-        card.innerHTML = `<div class="empty">${(news.notes || ['Sin titulares por ahora.'])[0]}</div>`;
+        const tip = (news.notes && news.notes[0]) || 'Sin titulares. Prueba Actualizar o advisor news --refresh.';
+        card.innerHTML = `<div class="empty">${tip}</div>`;
         return;
       }
       card.innerHTML = `
-        <div class="meta">Las predicciones incorporan este pulso de noticias (BBC/CNBC/Fed/Yahoo).</div>
+        <div class="meta">Titulares de hoy (BBC/CNBC/Fed/Yahoo). Empujan régimen y scores.</div>
         <div class="mini-grid">
           <div class="mini"><div class="k">Sentimiento</div><div class="v" style="color:${sent>=0?'var(--green)':'var(--red)'}">${sent>=0?'+':''}${sent.toFixed(2)}</div></div>
           <div class="mini"><div class="k">Urgencia</div><div class="v">${urg.toFixed(2)}</div></div>
         </div>
-        <ul>${headlines.slice(0,6).map(h => `<li><strong>[${Number(h.sentiment||0)>=0?'+':''}${Number(h.sentiment||0).toFixed(2)}]</strong> ${h.title}</li>`).join('')}</ul>`;
+        <ul>${headlines.slice(0,8).map(h => `<li><strong style="color:${Number(h.sentiment||0)>=0?'var(--green)':'var(--red)'}">[${Number(h.sentiment||0)>=0?'+':''}${Number(h.sentiment||0).toFixed(2)}]</strong> ${h.title}</li>`).join('')}</ul>`;
+    }
+
+    function renderIdeaList(list, emptyText, showRisks) {
+      if (!list || !list.length) return `<div class="empty">${emptyText}</div>`;
+      return list.map(r => {
+        const p = r.prediction;
+        const plan = r.plan;
+        const nf = Number((p.factors || {}).news_factor || 0);
+        const bullets = showRisks
+          ? (p.risks || []).slice(0, 3).concat([plan.invalidation].filter(Boolean)).slice(0, 3)
+          : (p.reasons || []).slice(0, 3);
+        return `
+          <div class="idea">
+            <div class="row" style="justify-content:space-between">
+              <div>
+                <div class="ticker">#${r.rank} ${p.ticker}</div>
+                <div class="meta">${p.name} · news ${nf>=0?'+':''}${nf.toFixed(2)}</div>
+              </div>
+              <span class="pill ${plan.action}">${plan.action}</span>
+            </div>
+            <div class="mini-grid">
+              <div class="mini"><div class="k">Prob. alza</div><div class="v">${pct(p.probability_up)}</div></div>
+              <div class="mini"><div class="k">Retorno est.</div><div class="v">${pct(p.expected_return)}</div></div>
+              <div class="mini"><div class="k">Edge neto</div><div class="v">${pct(plan.edge_net_pct)}</div></div>
+              <div class="mini"><div class="k">Tamaño</div><div class="v">${pct(plan.position_pct)}</div></div>
+            </div>
+            <ul>${bullets.map(x => `<li>${x}</li>`).join('')}</ul>
+          </div>`;
+      }).join('');
     }
 
     function renderIdeas(result) {
       const market = result.market || {};
       document.getElementById('marketState').textContent = market.regime || '—';
-      document.getElementById('ideasMeta').textContent = result.message ? 'actualizado' : '—';
-      renderNews(result);
-      const list = result.recommendations || [];
-      const card = document.getElementById('ideasCard');
+      document.getElementById('ideasMeta').textContent = `${(result.actionable || []).length} ideas`;
+      document.getElementById('avoidMeta').textContent = `${(result.do_not_invest || []).length} evitar`;
+      renderNewsPayload(result.news, market);
+
+      const ideasCard = document.getElementById('ideasCard');
+      const avoidCard = document.getElementById('avoidCard');
       if (result.error) {
-        card.innerHTML = `<div class="empty">${result.error}</div>`;
+        ideasCard.innerHTML = `<div class="empty">${result.error}</div>`;
         return;
       }
-      if (!list.length) {
-        card.innerHTML = '<div class="empty">Sin ideas por ahora.</div>';
-        return;
-      }
-      card.innerHTML = `
+      ideasCard.innerHTML = `
         <div class="meta">${result.message || ''}</div>
-        ${list.map(r => {
-          const p = r.prediction;
-          const plan = r.plan;
-          const nf = Number((p.factors || {}).news_factor || 0);
-          return `
-            <div class="idea">
-              <div class="row" style="justify-content:space-between">
-                <div>
-                  <div class="ticker">#${r.rank} ${p.ticker}</div>
-                  <div class="meta">${p.name} · news ${nf>=0?'+':''}${nf.toFixed(2)}</div>
-                </div>
-                <span class="pill ${plan.action}">${plan.action}</span>
-              </div>
-              <div class="mini-grid">
-                <div class="mini"><div class="k">Prob. alza</div><div class="v">${pct(p.probability_up)}</div></div>
-                <div class="mini"><div class="k">Retorno est.</div><div class="v">${pct(p.expected_return)}</div></div>
-                <div class="mini"><div class="k">Edge neto</div><div class="v">${pct(plan.edge_net_pct)}</div></div>
-                <div class="mini"><div class="k">Tamaño</div><div class="v">${pct(plan.position_pct)}</div></div>
-              </div>
-              <ul>${(p.reasons || []).slice(0,3).map(x => `<li>${x}</li>`).join('')}</ul>
-            </div>`;
-        }).join('')}`;
+        ${renderIdeaList(result.actionable || [], 'Ninguna compra con edge suficiente hoy. Cash es válido.', false)}`;
+      avoidCard.innerHTML = `
+        <div class="meta">Activos a evitar o no forzar — tan importante como comprar.</div>
+        ${renderIdeaList(result.do_not_invest || [], 'Sin lista de evitar.', true)}`;
     }
 
     async function refreshAll() {
@@ -475,6 +489,14 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'No se pudo cargar dashboard');
         renderDashboard(data);
+        if (data.news) renderNewsPayload(data.news, {});
+        else {
+          // fallback dedicado
+          try {
+            const nres = await fetch('/news');
+            if (nres.ok) renderNewsPayload(await nres.json(), {});
+          } catch {}
+        }
       } catch (err) {
         setBanner(err.message || String(err), 'warn');
       } finally {

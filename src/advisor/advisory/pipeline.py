@@ -112,11 +112,18 @@ class AdvisoryPipeline:
         for pred in predictions:
             plan = build_trade_plan(pred, market, self.settings)
             if plan is None:
-                continue
+                # Fallback: nunca silenciar un activo del universo
+                from advisor.risk.engine import _avoid_plan
+
+                plan = _avoid_plan(
+                    pred,
+                    pred.expected_return - self.settings.round_trip_cost_pct,
+                    "Sin plan operable.",
+                )
             all_recs.append(Recommendation(prediction=pred, plan=plan, market=market, rank=0))
 
         ranking = []
-        for idx, rec in enumerate(all_recs[:top_n], start=1):
+        for idx, rec in enumerate(all_recs[: max(top_n * 2, top_n)], start=1):
             ranking.append(rec.model_copy(update={"rank": idx}))
 
         actionable = [
@@ -129,22 +136,53 @@ class AdvisoryPipeline:
         for idx, rec in enumerate(actionable, start=1):
             actionable[idx - 1] = rec.model_copy(update={"rank": idx})
 
-        if actionable:
+        # Activos a NO invertir: peores scores / news / edge (evitar)
+        avoid_candidates = [
+            r
+            for r in all_recs
+            if r.plan.action in {Action.AVOID, Action.REDUCE, Action.HOLD}
+        ]
+        avoid_candidates = sorted(
+            avoid_candidates,
+            key=lambda r: (
+                float(r.prediction.score),
+                float(r.prediction.expected_return),
+                float(r.prediction.factors.get("news_factor", 0.0)),
+                float(r.plan.edge_net_pct),
+            ),
+        )
+        do_not_invest = []
+        for idx, rec in enumerate(avoid_candidates[:top_n], start=1):
+            do_not_invest.append(rec.model_copy(update={"rank": idx}))
+
+        if actionable and do_not_invest:
+            message = (
+                f"{len(actionable)} para invertir · {len(do_not_invest)} para NO invertir "
+                f"(evitar/reducir)."
+            )
+        elif actionable:
             message = f"{len(actionable)} idea(s) con edge neto positivo tras costos."
-            recommendations = actionable
         else:
             message = (
-                "Hoy el sistema recomienda NO abrir operaciones: "
-                "no hay edge neto suficiente después de costos/régimen. "
-                "No operar también es una decisión rentable."
+                f"Hoy NO abrir compras ({len(do_not_invest)} en lista de evitar). "
+                f"Cash/defensa es la decisión."
             )
-            recommendations = ranking
+
+        # Panel completo: compras primero, luego evitar (para UI/CLI)
+        board: list[Recommendation] = list(actionable)
+        for rec in do_not_invest:
+            if all(rec.prediction.ticker != x.prediction.ticker for x in board):
+                board.append(rec)
+        recommendations = [
+            r.model_copy(update={"rank": i}) for i, r in enumerate(board[: top_n * 2], start=1)
+        ]
 
         return {
             "market": market.model_dump(mode="json"),
             "recommendations": [r.model_dump(mode="json") for r in recommendations],
             "ranking": [r.model_dump(mode="json") for r in ranking],
             "actionable": [r.model_dump(mode="json") for r in actionable],
+            "do_not_invest": [r.model_dump(mode="json") for r in do_not_invest],
             "scanned": len(predictions),
             "broker": self.settings.broker,
             "cost_model": {

@@ -110,6 +110,24 @@ def dashboard(mode: str = Query(default="alpaca")) -> dict:
 
     daily = float(portfolio.get("daily_pnl") or 0)
     total = float(portfolio.get("total_pnl") or 0)
+
+    # Noticias siempre en dashboard (cache o fetch), sin esperar a /analyze
+    news_payload = None
+    try:
+        from advisor.news.engine import NewsEngine
+
+        symbols = AdvisoryPipeline(settings).market_data.load_universe()
+        news_payload = NewsEngine(settings).pulse(symbols, use_cache=True).to_dict()
+    except Exception as exc:
+        news_payload = {
+            "market_sentiment": 0.0,
+            "market_urgency": 0.0,
+            "regime_bias": 0.0,
+            "headlines": [],
+            "notes": [f"Noticias no disponibles: {exc}"],
+            "n_headlines": 0,
+        }
+
     return {
         "mode": used_mode,
         "warning": warning,
@@ -128,6 +146,7 @@ def dashboard(mode: str = Query(default="alpaca")) -> dict:
         "positions": positions,
         "movements": movements,
         "currency": settings.base_currency,
+        "news": news_payload,
     }
 
 

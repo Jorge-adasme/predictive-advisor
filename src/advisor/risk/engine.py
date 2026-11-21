@@ -22,9 +22,13 @@ def build_trade_plan(
     ic = float(prediction.factors.get("ic_spearman", 0.0))
     ir_proxy = float(prediction.factors.get("ir_proxy", 0.0))
 
-    # Filtros duros de certeza (capa cuantitativa)
+    # Filtros duros de certeza (capa cuantitativa) — siempre devolvemos plan (buy/hold/avoid)
     if prediction.probability_up < 0.54 and gross > 0:
-        return None
+        return _avoid_plan(
+            prediction,
+            edge_net,
+            "Probabilidad alcista insuficiente para abrir riesgo.",
+        )
     if edge_net < settings.min_edge_net_pct:
         return _avoid_plan(prediction, edge_net, "Edge neto insuficiente tras costos.")
     if market.regime == Regime.RISK_OFF and prediction.score < 0.55:

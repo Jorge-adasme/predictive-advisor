@@ -53,7 +53,7 @@ def detect_regime(
         news_sentiment = float(news.get("market_sentiment") or 0.0)
         news_urgency = float(news.get("market_urgency") or 0.0)
         news_bias = float(news.get("regime_bias") or 0.0)
-        headlines = list(news.get("headlines") or [])[:8]
+        headlines = list(news.get("headlines") or [])[:12]
         score += news_bias
         for n in news.get("notes") or []:
             notes.append(str(n))
