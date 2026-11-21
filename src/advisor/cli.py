@@ -300,6 +300,62 @@ def earnings_cmd(refresh: bool = typer.Option(False, help="Ignorar cache")) -> N
         console.print(f"  {r['ticker']:<6} {flag}  dte={dte_s}  {r.get('blackout_reason','')}")
 
 
+@app.command("system-status")
+def system_status_cmd(mode: str = typer.Option("alpaca", help="alpaca|paper")) -> None:
+    """Checklist de confianza: broker, IA, riesgo, kill-switch, auditoría."""
+    from advisor.execution.autopilot import build_broker
+    from advisor.execution.paper_broker import PaperBroker
+    from advisor.portfolio.audit import SystemStatus
+
+    settings = get_settings()
+    try:
+        portfolio = build_broker(settings, mode).status()
+    except Exception:
+        portfolio = PaperBroker(settings).status()
+    status = SystemStatus(settings).build(portfolio)
+    ready = "[green]LISTO[/green]" if status["ready"] else "[red]DEGRADADO[/red]"
+    console.print(f"[bold]Sistema[/bold] v{status['version']} · {ready} · {status['mode']}")
+    console.print(status["disclaimer"])
+    for c in status["checks"]:
+        mark = "[green]OK[/green]" if c["ok"] else "[red]FAIL[/red]"
+        console.print(f"  {mark} {c['name']}: {c['detail']}")
+
+
+@app.command("audit")
+def audit_cmd(
+    limit: int = typer.Option(30, help="Eventos a mostrar"),
+    event: Optional[str] = typer.Option(None, help="Filtrar por tipo"),
+) -> None:
+    """Bitácora de auditoría (analyze / autopilot / halt)."""
+    from advisor.portfolio.audit import AuditLog
+
+    rows = list(reversed(AuditLog().list_events(limit=limit, event=event)))
+    if not rows:
+        console.print("[yellow]Sin eventos de auditoría todavía.[/yellow]")
+        return
+    for r in rows:
+        console.print(
+            f"[cyan]{r.get('event')}[/cyan] {r.get('ts', '')[:19]} · "
+            f"{r.get('summary', '')[:100]}"
+        )
+
+
+@app.command("performance")
+def performance_cmd(mode: str = typer.Option("alpaca", help="alpaca|paper")) -> None:
+    """Win rate, expectancy, exposición y presupuesto de pérdida diaria."""
+    from advisor.execution.autopilot import build_broker
+    from advisor.execution.paper_broker import PaperBroker
+    from advisor.portfolio.audit import PerformanceStats
+
+    settings = get_settings()
+    try:
+        portfolio = build_broker(settings, mode).status()
+    except Exception:
+        portfolio = PaperBroker(settings).status()
+    stats = PerformanceStats(settings).from_portfolio(portfolio)
+    console.print_json(json.dumps(stats, default=str))
+
+
 @app.command("ai-decide")
 def ai_decide(top: int = typer.Option(10, help="Ideas a evaluar con IA")) -> None:
     """Capa de IA: decide buy/hold/avoid sobre el análisis cuantitativo."""

@@ -10,7 +10,10 @@ client = TestClient(app)
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    body = response.json()
+    assert body["status"] in {"ok", "degraded"}
+    assert "ready" in body
+    assert body.get("version")
 
 
 def test_btg_status():

@@ -375,6 +375,66 @@
       max-width: 72ch;
     }
 
+    /* Trust / professional chrome */
+    .trust-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: var(--card);
+      border: 1px solid var(--line);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+    .chip .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      flex: 0 0 auto;
+    }
+    .chip.ok .dot { background: var(--green); }
+    .chip.warn .dot { background: var(--amber); }
+    .chip.danger .dot { background: var(--red); }
+    .chip.ok { color: #065f46; background: var(--green-soft); border-color: #cceede; }
+    .chip.warn { color: #92400e; background: var(--amber-soft); border-color: #f5e0c0; }
+    .chip.danger { color: #9f1239; background: var(--red-soft); border-color: #f5c2d0; }
+    .check-list { display: flex; flex-direction: column; gap: 8px; }
+    .check-item {
+      display: flex; justify-content: space-between; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--line);
+      font-size: 0.88rem;
+    }
+    .check-item:last-child { border-bottom: 0; }
+    .check-item .name { font-weight: 700; }
+    .check-item .detail { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
+    .audit-row {
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.86rem;
+    }
+    .audit-row:last-child { border-bottom: 0; }
+    .audit-row .when { color: var(--muted); font-size: 0.72rem; }
+    .audit-row .ev { font-weight: 800; text-transform: uppercase; font-size: 0.72rem; color: var(--blue); }
+    .progress {
+      height: 8px; border-radius: 999px; background: #e8eef6; overflow: hidden; margin-top: 8px;
+    }
+    .progress > span {
+      display: block; height: 100%; border-radius: 999px; background: var(--green);
+    }
+    .progress.warn > span { background: var(--amber); }
+    .progress.danger > span { background: var(--red); }
+
     /* Muy estrecho (iPhone SE) */
     @media (max-width: 380px) {
       :root { --pad-x: 12px; }
@@ -486,6 +546,7 @@
     </header>
 
     <div id="banner" class="banner info">Preparando resumen de portafolio…</div>
+    <div class="trust-bar" id="trustBar" aria-label="Estado de confianza"></div>
 
     <div class="layout">
       <div class="section section-span" data-section="resumen">
@@ -530,6 +591,26 @@
       </div>
 
       <div class="col col-main">
+        <div class="section" data-section="riesgo">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Riesgo y rendimiento</span></div>
+            <span class="meta-right" id="riskMeta">—</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="riskCard"><div class="empty">Cargando métricas de riesgo…</div></div>
+          </div>
+        </div>
+
+        <div class="section" data-section="sistema">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Estado del sistema</span></div>
+            <span class="meta-right" id="systemMeta">—</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="systemCard"><div class="empty">Verificando checklist…</div></div>
+          </div>
+        </div>
+
         <div class="section" data-section="posiciones">
           <div class="section-title" role="button" tabindex="0" aria-expanded="true">
             <div class="left"><span class="chev">▾</span><span class="label">Posiciones abiertas</span></div>
@@ -557,6 +638,16 @@
           </div>
           <div class="section-body">
             <div class="card" id="newsCard"><div class="empty">Cargando titulares…</div></div>
+          </div>
+        </div>
+
+        <div class="section" data-section="auditoria">
+          <div class="section-title" role="button" tabindex="0" aria-expanded="true">
+            <div class="left"><span class="chev">▾</span><span class="label">Auditoría</span></div>
+            <span class="meta-right" id="auditMeta">últimos</span>
+          </div>
+          <div class="section-body">
+            <div class="card" id="auditCard"><div class="empty">Sin eventos aún.</div></div>
           </div>
         </div>
       </div>
@@ -594,9 +685,8 @@
       </div>
     </div>
 
-    <p class="footer-note">
-      iPhone y escritorio: mismo panel. El cuant analiza, la IA decide y el autopilot solo compra si aprueba.
-      No hay ganancias garantizadas.
+    <p class="footer-note" id="disclaimerNote">
+      Herramienta de apoyo a la decisión. Paper-first. No es asesoría financiera regulada ni garantiza rentabilidad.
     </p>
   </div>
 
@@ -609,9 +699,12 @@
     const COLLAPSE_KEY = 'advisor_sections_v1';
     const DEFAULT_OPEN = {
       resumen: true,
+      riesgo: true,
+      sistema: true,
       posiciones: true,
       movimientos: false,
       noticias: true,
+      auditoria: false,
       evitar: true,
       oportunidades: true,
       ia: true,
@@ -704,12 +797,128 @@
       el.textContent = text;
     }
 
+    function fmtTs(ts) {
+      if (!ts) return '—';
+      const s = String(ts).replace('T', ' ');
+      return s.slice(0, 16) + 'Z';
+    }
+
+    function renderTrust(data) {
+      const sys = data.system || {};
+      const h = data.headline || {};
+      const perf = data.performance || {};
+      const bar = document.getElementById('trustBar');
+      if (!bar) return;
+      const chips = [];
+      chips.push({
+        cls: sys.paper_trading ? 'warn' : 'danger',
+        text: sys.paper_trading ? 'PAPER trading' : 'LIVE — cuidado',
+      });
+      chips.push({
+        cls: sys.ready && !h.halted ? 'ok' : 'danger',
+        text: h.halted ? 'Kill-switch ON' : (sys.ready ? 'Sistema listo' : 'Sistema degradado'),
+      });
+      chips.push({
+        cls: 'ok',
+        text: `IA ${(sys.checks || []).find(c => c.name === 'ai_layer')?.detail || 'local'}`.slice(0, 42),
+      });
+      chips.push({
+        cls: (perf.exposure_pct || 0) > 0.85 ? 'warn' : 'ok',
+        text: `Exposición ${pct(perf.exposure_pct || 0)}`,
+      });
+      chips.push({
+        cls: 'ok',
+        text: `Sync ${fmtTs(h.updated_at)}`,
+      });
+      bar.innerHTML = chips.map(c =>
+        `<span class="chip ${c.cls}"><span class="dot"></span>${esc(c.text)}</span>`
+      ).join('');
+      const note = document.getElementById('disclaimerNote');
+      if (note && data.disclaimer) note.textContent = data.disclaimer;
+    }
+
+    function renderRisk(data) {
+      const perf = data.performance || {};
+      const h = data.headline || {};
+      const meta = document.getElementById('riskMeta');
+      const card = document.getElementById('riskCard');
+      if (!card) return;
+      if (meta) meta.textContent = `${perf.n_closed || 0} cierres`;
+      const budget = Number(perf.daily_loss_budget_left || 0);
+      const maxLoss = Number(h.equity || 0) * Number(perf.max_daily_loss_pct || 0.02);
+      const used = maxLoss > 0 ? Math.min(1, Math.max(0, 1 - (budget / maxLoss))) : 0;
+      const usedCls = used > 0.7 ? 'danger' : (used > 0.4 ? 'warn' : '');
+      const sectors = Object.entries(perf.sectors || {}).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'sin posiciones';
+      card.innerHTML = `
+        <div class="mini-grid">
+          <div class="mini"><div class="k">Win rate</div><div class="v">${pct(perf.win_rate || 0)}</div></div>
+          <div class="mini"><div class="k">Expectancy</div><div class="v">${signedMoney(perf.expectancy || 0, currency)}</div></div>
+          <div class="mini"><div class="k">Profit factor</div><div class="v">${Number(perf.profit_factor || 0).toFixed(2)}</div></div>
+          <div class="mini"><div class="k">Retorno total</div><div class="v">${pct(perf.total_return_pct || 0)}</div></div>
+          <div class="mini"><div class="k">Exposición</div><div class="v">${pct(perf.exposure_pct || 0)}</div></div>
+          <div class="mini"><div class="k">Abiertas</div><div class="v">${perf.n_open || 0}/${perf.max_positions || 0}</div></div>
+        </div>
+        <div class="meta" style="margin-top:12px"><strong>Presupuesto de pérdida diaria</strong> · queda ${money(budget, currency)}</div>
+        <div class="progress ${usedCls}"><span style="width:${(used * 100).toFixed(0)}%"></span></div>
+        <div class="meta" style="margin-top:10px"><strong>Sectores</strong> · ${esc(sectors)}</div>
+        <div class="meta">Stops, trailing, partial TP y time-stop activos. Kill-switch al −${pct(perf.max_daily_loss_pct || 0.02)} diario.</div>
+      `;
+    }
+
+    function renderSystem(data) {
+      const sys = data.system || {};
+      const meta = document.getElementById('systemMeta');
+      const card = document.getElementById('systemCard');
+      if (!card) return;
+      if (meta) meta.textContent = sys.ready ? 'listo' : 'degradado';
+      const checks = sys.checks || [];
+      if (!checks.length) {
+        card.innerHTML = '<div class="empty">Sin checklist.</div>';
+        return;
+      }
+      card.innerHTML = `
+        <div class="meta">v${esc(sys.version || '')} · modo ${esc(sys.mode || data.mode || '')}</div>
+        <div class="check-list" style="margin-top:8px">
+          ${checks.map(c => `
+            <div class="check-item">
+              <div>
+                <div class="name">${c.ok ? '✓' : '✗'} ${esc(c.name)}</div>
+                <div class="detail">${esc(c.detail || '')}</div>
+              </div>
+              <span class="pill ${c.ok ? 'buy' : 'avoid'}">${c.ok ? 'OK' : 'FAIL'}</span>
+            </div>`).join('')}
+        </div>`;
+    }
+
+    function renderAudit(data) {
+      const rows = data.audit || [];
+      const meta = document.getElementById('auditMeta');
+      const card = document.getElementById('auditCard');
+      if (!card) return;
+      if (meta) meta.textContent = `${rows.length}`;
+      if (!rows.length) {
+        card.innerHTML = '<div class="empty">Aún no hay eventos. Analizar o Auto generarás auditoría.</div>';
+        return;
+      }
+      card.innerHTML = rows.map(r => `
+        <div class="audit-row">
+          <div>
+            <div class="ev">${esc(r.event || '')}</div>
+            <div class="when">${esc(fmtTs(r.ts))}</div>
+          </div>
+          <div>
+            <div>${esc(r.summary || '')}</div>
+            <div class="meta">${esc(r.source || '')} · ${esc(r.level || 'info')}</div>
+          </div>
+        </div>`).join('');
+    }
+
     function renderDashboard(data) {
       lastDashboard = data;
       currency = data.currency || 'USD';
       const h = data.headline || {};
       document.getElementById('hello').textContent =
-        h.halted ? 'El bot está en pausa por seguridad' : 'Aquí ves tu progreso en tiempo real';
+        h.halted ? 'El bot está en pausa por seguridad' : 'Panel profesional · paper-first';
       const badge = document.getElementById('modeBadge');
       badge.textContent = (data.mode || 'paper').toUpperCase();
       badge.className = 'badge ' + (String(data.mode).includes('alpaca') ? 'ok' : 'warn');
@@ -726,6 +935,11 @@
       document.getElementById('botState').textContent = h.halted ? 'Pausado' : 'Activo';
       document.getElementById('botState').className = 'v ' + (h.halted ? 'down' : 'up');
 
+      renderTrust(data);
+      renderRisk(data);
+      renderSystem(data);
+      renderAudit(data);
+
       if (data.warning) setBanner(data.warning, 'warn');
       else if (h.halted) setBanner(`Bot pausado: ${h.halt_reason || 'kill-switch'}`, 'warn');
       else if ((h.daily_pnl || 0) >= 0) setBanner('Buen ritmo: hoy vas en positivo o plano. Sigue con disciplina.', 'ok');
@@ -740,8 +954,9 @@
         posCard.innerHTML = positions.map(p => `
           <div class="pos">
             <div>
-              <div class="ticker">${p.ticker}</div>
-              <div class="meta">${Number(p.qty).toFixed(4)} · entrada ${money(p.entry_price, currency)}</div>
+              <div class="ticker">${esc(p.ticker)}</div>
+              <div class="meta">${Number(p.qty).toFixed(4)} · entrada ${money(p.entry_price, currency)}${p.sector ? ' · ' + esc(p.sector) : ''}</div>
+              <div class="meta">stop ${p.stop != null ? money(p.stop, currency) : '—'} · target ${p.target != null ? money(p.target, currency) : '—'}</div>
             </div>
             <div class="right">
               <div class="${p.pnl >= 0 ? 'up' : 'down'}" style="font-weight:800">${signedMoney(p.pnl, currency)}</div>

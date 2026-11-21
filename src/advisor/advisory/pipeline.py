@@ -9,6 +9,7 @@ from advisor.models import Action, Recommendation
 from advisor.ai.decision_agent import DecisionAgent
 from advisor.events.earnings import EarningsCalendar
 from advisor.news.engine import NewsEngine
+from advisor.portfolio.audit import AuditLog
 from advisor.prediction.ranking import apply_cross_sectional_ranks
 from advisor.prediction.scoring import score_symbol
 from advisor.risk.engine import build_trade_plan
@@ -270,7 +271,7 @@ class AdvisoryPipeline:
                 f"{sum(1 for d in ai_decisions if d['action']=='avoid')} avoid."
             )
 
-        return {
+        result = {
             "market": market_dict,
             "recommendations": [r.model_dump(mode="json") for r in recommendations],
             "ranking": [r.model_dump(mode="json") for r in ranking],
@@ -293,7 +294,28 @@ class AdvisoryPipeline:
             "earnings": earnings_dict,
             "message": message,
             "error": None,
+            "disclaimer": (
+                "Herramienta de apoyo a la decisión. No garantiza rentabilidad. "
+                "Evalúa costos, liquidez y tu perfil de riesgo antes de operar."
+            ),
         }
+        try:
+            AuditLog(self.settings).record(
+                "analyze",
+                source="pipeline",
+                summary=message,
+                payload={
+                    "scanned": len(predictions),
+                    "opportunities": len(opp_payload),
+                    "avoid": len(avoid_payload),
+                    "actionable": len(actionable_payload),
+                    "regime": (market_dict or {}).get("regime"),
+                    "ai": ai_meta,
+                },
+            )
+        except Exception:
+            pass
+        return result
 
     def draft_order(self, recommendation: Recommendation) -> dict:
         return self.btg.create_order_draft(recommendation.plan.model_dump(mode="json"))

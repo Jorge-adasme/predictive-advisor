@@ -8,6 +8,7 @@ from advisor.config import Settings, get_settings
 from advisor.execution.paper_broker import PaperBroker
 from advisor.execution.trail_store import TrailStore
 from advisor.models import Action
+from advisor.portfolio.audit import AuditLog
 from advisor.risk.portfolio_filters import select_diversified
 from advisor.risk.trailing import (
     progress_in_r,
@@ -337,6 +338,24 @@ class Autopilot:
         else:
             done = [a for a in actions if a.get("ok")]
             message = f"Autopilot ({self.mode}) ejecutó {len(done)} acción(es)."
+
+        try:
+            AuditLog(self.settings).record(
+                "autopilot",
+                source=f"autopilot:{self.mode}",
+                level="info" if actions else "info",
+                summary=message,
+                payload={
+                    "mode": self.mode,
+                    "n_actions": len(actions),
+                    "entries": [a for a in actions if a.get("type") == "entry"],
+                    "exits": [a for a in actions if a.get("type") in {"exit", "partial"}],
+                    "ai_vetoes": [a for a in actions if a.get("type") == "ai_veto"],
+                    "regime": (analysis.get("market") or {}).get("regime"),
+                },
+            )
+        except Exception:
+            pass
 
         return AutopilotResult(
             ts=datetime.now(timezone.utc).isoformat(),

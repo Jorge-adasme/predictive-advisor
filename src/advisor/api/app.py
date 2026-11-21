@@ -16,8 +16,11 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(
     title="Predictive Investment Advisor",
-    description="Analizador predictivo de inversiones (Chile / BTG-ready)",
-    version="0.1.0",
+    description=(
+        "Asistente predictivo de inversiones con capa IA, riesgo y auditoría. "
+        "Paper-first. No garantiza rentabilidad."
+    ),
+    version="0.4.0",
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -43,14 +46,69 @@ class DecisionRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "predictive-advisor"}
+    from advisor.portfolio.audit import SystemStatus
+
+    status = SystemStatus().build()
+    return {
+        "status": "ok" if status["ready"] else "degraded",
+        "service": "predictive-advisor",
+        "version": status["version"],
+        "ready": status["ready"],
+        "paper_trading": status["paper_trading"],
+    }
+
+
+@app.get("/system/status")
+def system_status(mode: str = Query(default="alpaca")) -> dict:
+    """Checklist operativo: broker, IA, riesgo, kill-switch, auditoría."""
+    from advisor.execution.autopilot import build_broker
+    from advisor.execution.paper_broker import PaperBroker
+    from advisor.portfolio.audit import SystemStatus
+
+    settings = get_settings()
+    portfolio: dict = {}
+    try:
+        portfolio = build_broker(settings, mode).status()
+    except Exception:
+        portfolio = PaperBroker(settings).status()
+    return SystemStatus(settings).build(portfolio)
+
+
+@app.get("/audit")
+def audit_feed(
+    limit: int = Query(default=80, ge=1, le=500),
+    event: str | None = Query(default=None),
+) -> dict:
+    from advisor.portfolio.audit import AuditLog
+
+    rows = AuditLog().list_events(limit=limit, event=event)
+    return {"events": list(reversed(rows)), "count": len(rows)}
+
+
+@app.get("/performance")
+def performance(mode: str = Query(default="alpaca")) -> dict:
+    from advisor.execution.autopilot import build_broker
+    from advisor.execution.paper_broker import PaperBroker
+    from advisor.portfolio.audit import PerformanceStats
+
+    settings = get_settings()
+    try:
+        portfolio = build_broker(settings, mode).status()
+    except Exception:
+        portfolio = PaperBroker(settings).status()
+    return {
+        "mode": portfolio.get("mode") or mode,
+        "stats": PerformanceStats(settings).from_portfolio(portfolio),
+        "currency": settings.base_currency,
+    }
 
 
 @app.get("/dashboard")
 def dashboard(mode: str = Query(default="alpaca")) -> dict:
-    """Resumen amigable para la UI: portafolio + movimientos."""
+    """Resumen amigable para la UI: portafolio + riesgo + confianza."""
     from advisor.execution.autopilot import build_broker
     from advisor.execution.paper_broker import PaperBroker
+    from advisor.portfolio.audit import AuditLog, PerformanceStats, SystemStatus
 
     settings = get_settings()
     used_mode = mode
@@ -111,14 +169,17 @@ def dashboard(mode: str = Query(default="alpaca")) -> dict:
                 "pnl_pct": pnl_pct,
                 "stop": pos.get("stop"),
                 "target": pos.get("target"),
+                "sector": pos.get("sector") or "Unknown",
             }
         )
     positions = sorted(positions, key=lambda p: p["pnl"], reverse=True)
 
     daily = float(portfolio.get("daily_pnl") or 0)
     total = float(portfolio.get("total_pnl") or 0)
+    stats = PerformanceStats(settings).from_portfolio(portfolio)
+    system = SystemStatus(settings).build(portfolio)
+    audit_rows = list(reversed(AuditLog(settings).list_events(limit=12)))
 
-    # Noticias siempre en dashboard (cache o fetch), sin esperar a /analyze
     news_payload = None
     try:
         from advisor.news.engine import NewsEngine
@@ -149,11 +210,17 @@ def dashboard(mode: str = Query(default="alpaca")) -> dict:
             "halted": bool(portfolio.get("halted")),
             "halt_reason": portfolio.get("halt_reason") or "",
             "updated_at": portfolio.get("updated_at"),
+            "exposure_pct": stats.get("exposure_pct"),
+            "daily_loss_budget_left": stats.get("daily_loss_budget_left"),
         },
         "positions": positions,
         "movements": movements,
+        "performance": stats,
+        "system": system,
+        "audit": audit_rows,
         "currency": settings.base_currency,
         "news": news_payload,
+        "disclaimer": system.get("disclaimer"),
     }
 
 
@@ -235,15 +302,32 @@ def portfolio_halt(
     mode: str = Query(default="alpaca"),
 ) -> dict:
     from advisor.execution.autopilot import build_broker
+    from advisor.portfolio.audit import AuditLog
 
-    return build_broker(get_settings(), mode).halt(reason)
+    result = build_broker(get_settings(), mode).halt(reason)
+    AuditLog().record(
+        "halt",
+        level="warn",
+        source=f"api:{mode}",
+        summary=f"Kill-switch activado: {reason}",
+        payload={"reason": reason, "mode": mode},
+    )
+    return result
 
 
 @app.post("/portfolio/resume")
 def portfolio_resume(mode: str = Query(default="alpaca")) -> dict:
     from advisor.execution.autopilot import build_broker
+    from advisor.portfolio.audit import AuditLog
 
-    return build_broker(get_settings(), mode).resume()
+    result = build_broker(get_settings(), mode).resume()
+    AuditLog().record(
+        "resume",
+        source=f"api:{mode}",
+        summary="Kill-switch desactivado",
+        payload={"mode": mode},
+    )
+    return result
 
 
 @app.get("/alpaca/status")

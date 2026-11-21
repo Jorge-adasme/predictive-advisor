@@ -1,18 +1,19 @@
 # Predictive Investment Advisor (Chile / BTG-ready)
 
-Asistente predictivo de inversiones orientado a **ganar expectancy neta**, no solo "predecir dirección".
+Asistente predictivo de inversiones orientado a **expectancy neta**, riesgo y **confianza operativa** — no solo "predecir dirección".
 
-Flujo actual (MVP):
+Flujo actual (v0.4):
 
-1. Analiza régimen de mercado (IPSA)
-2. Scorea universo de acciones Chile (BCS / `.SN`)
-3. Estima probabilidad / retorno esperado
-4. Filtra por **edge neto después de costos BTG estimados**
-5. Entrega plan: entrada, stop, target, tamaño
-6. Guarda decisiones en journal (aceptar/rechazar)
-7. Prepara draft de orden BTG (sin ejecución automática todavía)
+1. Analiza régimen + noticias (14d) + earnings blackout
+2. Scorea universo (Alpaca US / Chile)
+3. Estima probabilidad / retorno / edge neto tras costos
+4. **IA decide** buy/hold/avoid y puede vetar el autopilot
+5. Autopilot con stops, trailing, diversificación y kill-switch
+6. **Auditoría + performance + checklist** de sistema (paper-first)
 
-> No garantiza rentabilidad. Es una herramienta de decisión con gestión de riesgo.
+> No garantiza rentabilidad. No es asesoría financiera regulada. Opera primero en paper.
+
+Confianza profesional: [`docs/PROFESSIONAL_TRUST.md`](docs/PROFESSIONAL_TRUST.md)
 
 ## Stack
 
@@ -48,6 +49,11 @@ advisor news
 # Capa IA: decide buy/hold/avoid sobre el análisis cuantitativo
 advisor ai-decide --top 10
 
+# Confianza operativa
+advisor system-status
+advisor performance --mode paper
+advisor audit --limit 30
+
 # Calendario earnings + blackout
 advisor earnings
 
@@ -75,6 +81,9 @@ Dashboard web (`/`): responsive para **iPhone** (dock inferior + safe-area) y **
 Endpoints:
 
 - `GET /health`
+- `GET /system/status`
+- `GET /performance`
+- `GET /audit`
 - `GET /analyze?top_n=8`
 - `GET /ai/decisions?top_n=10`
 - `GET /btg/status`
@@ -154,10 +163,15 @@ meta-labeling e IR ranking. Ver [`docs/QUANT_ALPHA_V2.md`](docs/QUANT_ALPHA_V2.m
 - [x] Factor de noticias mundiales (RSS + Yahoo) en predicción/régimen
 - [x] v3: sentimiento semántico TF-IDF + NewsAPI opcional + earnings blackout
 - [x] Capa IA de decisión (local committee + OpenAI/Anthropic opcional) con gate de autopilot
+- [x] UI responsive iPhone + escritorio
+- [x] Capa de confianza: system status, performance, audit log, trust bar
 
+- [ ] Auth de usuario / sesiones
+- [ ] Notificaciones (email/push) de fills y kill-switch
 - [ ] Conector oficial BTG / Finanzas Abiertas
 - [ ] Semi-auto / live con aprobación humana + IA
 - [ ] Modelos ML entrenados (además del scoring factorial)
+- [ ] Reportes exportables (CSV/PDF) para compliance personal
 
 ## Nota regulatoria (Chile)
 
