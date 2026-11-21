@@ -211,6 +211,11 @@ class SystemStatus:
             True,
             f"{len(audit.list_events(limit=10_000))} eventos · último={last_events[-1]['event'] if last_events else '—'}",
         )
+        add(
+            "live_feed",
+            bool(getattr(s, "live_enabled", True)),
+            f"poll={getattr(s, 'live_poll_sec', 8)}s · analyze={getattr(s, 'live_analyze_sec', 120)}s",
+        )
 
         critical_fail = [c for c in checks if c["critical"] and not c["ok"]]
         ready = len(critical_fail) == 0

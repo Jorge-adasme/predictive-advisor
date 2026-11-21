@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from advisor.advisory.pipeline import AdvisoryPipeline
+from advisor.api.live import live_snapshot
 from advisor.config import get_settings
 from advisor.models import Recommendation
 from advisor.portfolio.journal import JournalStore
@@ -56,6 +59,52 @@ def health() -> dict:
         "ready": status["ready"],
         "paper_trading": status["paper_trading"],
     }
+
+
+@app.get("/live")
+def live_tick(
+    mode: str = Query(default="alpaca"),
+    marks: bool = Query(default=True, description="Refrescar last_price de posiciones"),
+) -> dict:
+    """Tick liviano de portafolio/precios para UI en tiempo casi real."""
+    return live_snapshot(mode, marks)
+
+
+@app.get("/live/stream")
+async def live_stream(
+    mode: str = Query(default="alpaca"),
+    interval: int = Query(default=0, ge=0, le=60),
+) -> StreamingResponse:
+    """Server-Sent Events: empuja el portafolio cada N segundos."""
+    settings = get_settings()
+    if not settings.live_enabled:
+        raise HTTPException(status_code=503, detail="Live desactivado (ADVISOR_LIVE_ENABLED=false)")
+    sec = interval or int(settings.live_poll_sec)
+
+    async def event_gen():
+        while True:
+            try:
+                payload = await asyncio.to_thread(live_snapshot, mode, True)
+                yield f"event: tick\ndata: {json.dumps(payload, default=str)}\n\n"
+            except Exception as exc:
+                from datetime import datetime, timezone
+
+                err = {
+                    "error": str(exc),
+                    "server_ts": datetime.now(timezone.utc).isoformat(),
+                }
+                yield f"event: error\ndata: {json.dumps(err)}\n\n"
+            await asyncio.sleep(sec)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-store",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/system/status")

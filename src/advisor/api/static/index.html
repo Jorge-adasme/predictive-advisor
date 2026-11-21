@@ -406,6 +406,54 @@
     .chip.ok { color: #065f46; background: var(--green-soft); border-color: #cceede; }
     .chip.warn { color: #92400e; background: var(--amber-soft); border-color: #f5e0c0; }
     .chip.danger { color: #9f1239; background: var(--red-soft); border-color: #f5c2d0; }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+      white-space: nowrap;
+    }
+    .live-badge.off {
+      background: #f8fafc;
+      color: var(--muted);
+      border-color: var(--line);
+    }
+    .live-badge .pulse {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 0 rgba(16,185,129,0.7);
+      animation: livePulse 1.6s infinite;
+    }
+    .live-badge.off .pulse {
+      background: #94a3b8;
+      animation: none;
+      box-shadow: none;
+    }
+    @keyframes livePulse {
+      0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.55); }
+      70% { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .live-badge .pulse { animation: none; }
+    }
+    .flash-up { animation: flashUp 0.7s ease; }
+    .flash-down { animation: flashDown 0.7s ease; }
+    @keyframes flashUp {
+      from { background: rgba(15,159,110,0.18); }
+      to { background: transparent; }
+    }
+    @keyframes flashDown {
+      from { background: rgba(225,29,72,0.14); }
+      to { background: transparent; }
+    }
     .check-list { display: flex; flex-direction: column; gap: 8px; }
     .check-item {
       display: flex; justify-content: space-between; gap: 10px;
@@ -537,6 +585,10 @@
         <div class="hello" id="hello">Cargando tu dashboard…</div>
       </div>
       <div class="topbar-right">
+        <div id="liveBadge" class="live-badge off" title="Estado en vivo">
+          <span class="pulse"></span>
+          <span id="liveLabel">conectando…</span>
+        </div>
         <div id="modeBadge" class="badge">—</div>
         <div class="desktop-actions" aria-label="Acciones escritorio">
           <button type="button" class="secondary" id="refreshBtnDesktop" onclick="refreshAll()">Actualizar</button>
@@ -1161,6 +1213,156 @@
       }
     }
 
+    const LIVE_MODE = 'alpaca';
+    let livePollSec = 8;
+    let analyzeSec = 120;
+    let lastLiveAt = 0;
+    let lastAnalyzeAt = 0;
+    let liveSource = null;
+    let livePollTimer = null;
+    let analyzeTimer = null;
+    let ageTimer = null;
+    let liveBusy = false;
+    let prevEquity = null;
+    let useSSE = true;
+
+    function setLiveStatus(on, text) {
+      const badge = document.getElementById('liveBadge');
+      const label = document.getElementById('liveLabel');
+      if (!badge || !label) return;
+      badge.classList.toggle('off', !on);
+      label.textContent = text;
+    }
+
+    function updateLiveAge() {
+      if (!lastLiveAt) {
+        setLiveStatus(false, 'conectando…');
+        return;
+      }
+      const sec = Math.max(0, Math.round((Date.now() - lastLiveAt) / 1000));
+      const stale = sec > Math.max(livePollSec * 3, 25);
+      setLiveStatus(!stale, stale ? `retraso ${sec}s` : `en vivo · ${sec}s`);
+    }
+
+    function applyLiveFlash(equity) {
+      const el = document.getElementById('equity');
+      if (!el || prevEquity == null || equity == null) {
+        prevEquity = equity;
+        return;
+      }
+      if (equity > prevEquity) {
+        el.classList.remove('flash-down');
+        el.classList.remove('flash-up');
+        void el.offsetWidth;
+        el.classList.add('flash-up');
+      } else if (equity < prevEquity) {
+        el.classList.remove('flash-up');
+        el.classList.remove('flash-down');
+        void el.offsetWidth;
+        el.classList.add('flash-down');
+      }
+      prevEquity = equity;
+    }
+
+    function renderLiveNumbers(data) {
+      // Actualización suave: no pisa banner/análisis en cada tick
+      lastDashboard = { ...(lastDashboard || {}), ...data, headline: data.headline, positions: data.positions, movements: data.movements, performance: data.performance };
+      currency = data.currency || currency || 'USD';
+      const h = data.headline || {};
+      const badge = document.getElementById('modeBadge');
+      if (badge) {
+        badge.textContent = (data.mode || 'paper').toUpperCase();
+        badge.className = 'badge ' + (String(data.mode).includes('alpaca') ? 'ok' : 'warn');
+      }
+      document.getElementById('equity').textContent = money(h.equity, currency);
+      document.getElementById('dailyPnl').textContent = signedMoney(h.daily_pnl, currency);
+      document.getElementById('totalPnl').textContent = signedMoney(h.total_pnl, currency);
+      document.getElementById('cash').textContent = money(h.cash, currency);
+      document.getElementById('openPos').textContent = String(h.open_positions || 0);
+      document.getElementById('botState').textContent = h.halted ? 'Pausado' : 'Activo';
+      document.getElementById('botState').className = 'v ' + (h.halted ? 'down' : 'up');
+
+      const positions = data.positions || [];
+      document.getElementById('posCount').textContent = String(positions.length);
+      const posCard = document.getElementById('positionsCard');
+      if (!positions.length) {
+        posCard.innerHTML = '<div class="empty">Sin posiciones abiertas por ahora. Tranquilo: no operar también es una decisión.</div>';
+      } else {
+        posCard.innerHTML = positions.map(p => `
+          <div class="pos">
+            <div>
+              <div class="ticker">${esc(p.ticker)}</div>
+              <div class="meta">${Number(p.qty).toFixed(4)} · entrada ${money(p.entry_price, currency)}${p.sector ? ' · ' + esc(p.sector) : ''}</div>
+              <div class="meta">stop ${p.stop != null ? money(p.stop, currency) : '—'} · target ${p.target != null ? money(p.target, currency) : '—'}</div>
+            </div>
+            <div class="right">
+              <div class="${p.pnl >= 0 ? 'up' : 'down'}" style="font-weight:800">${signedMoney(p.pnl, currency)}</div>
+              <div class="meta">${pct(p.pnl_pct)} · último ${money(p.last_price, currency)}</div>
+            </div>
+          </div>`).join('');
+      }
+
+      const moves = data.movements || [];
+      const movesCard = document.getElementById('movesCard');
+      if (!moves.length) {
+        movesCard.innerHTML = '<div class="empty">Todavía no hay movimientos. Cuando Auto compre o venda, aparecerá aquí.</div>';
+      } else {
+        movesCard.innerHTML = moves.slice(0, 12).map(m => {
+          const side = String(m.side || '').toLowerCase();
+          const isBuy = side.includes('buy');
+          const pnl = m.pnl;
+          return `
+            <div class="move">
+              <div class="icon ${isBuy ? 'buy' : 'sell'}">${isBuy ? '↑' : '↓'}</div>
+              <div>
+                <div class="ticker">${sideLabel(m.side)} · ${m.ticker || '—'}</div>
+                <div class="meta">${m.reason || m.status || 'orden'} · ${String(m.ts || '').replace('T', ' ').slice(0, 19)}</div>
+              </div>
+              <div class="right">
+                <div style="font-weight:800">${m.price != null ? money(m.price, currency) : '—'}</div>
+                <div class="meta ${pnl == null ? '' : (pnl >= 0 ? 'up' : 'down')}">${pnl == null ? (m.qty != null ? `${Number(m.qty).toFixed(3)} u` : '') : signedMoney(pnl, currency)}</div>
+              </div>
+            </div>`;
+        }).join('');
+      }
+      renderRisk(data);
+      // trust bar: actualizar sync/exposición sin rehacer todo el sistema
+      const bar = document.getElementById('trustBar');
+      if (bar && lastDashboard?.system) {
+        renderTrust({ ...lastDashboard, headline: h, performance: data.performance || lastDashboard.performance });
+      }
+    }
+
+    function mergeLiveIntoDashboard(tick) {
+      if (!tick || tick.error) return;
+      const base = lastDashboard || {
+        mode: tick.mode,
+        currency: tick.currency,
+        headline: {},
+        positions: [],
+        movements: [],
+        performance: {},
+        system: {},
+        audit: [],
+      };
+      const merged = {
+        ...base,
+        mode: tick.mode || base.mode,
+        warning: tick.warning || base.warning,
+        currency: tick.currency || base.currency,
+        headline: { ...(base.headline || {}), ...(tick.headline || {}) },
+        positions: tick.positions || base.positions,
+        movements: tick.movements || base.movements,
+        performance: tick.performance || base.performance,
+      };
+      if (tick.poll_sec) livePollSec = Number(tick.poll_sec) || livePollSec;
+      if (tick.analyze_sec) analyzeSec = Number(tick.analyze_sec) || analyzeSec;
+      applyLiveFlash(merged.headline?.equity);
+      renderLiveNumbers(merged);
+      lastLiveAt = Date.now();
+      updateLiveAge();
+    }
+
     async function runAnalyze(silent) {
       if (!silent) setBanner('Analizando mercado y noticias…', 'info');
       try {
@@ -1168,26 +1370,47 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error al analizar');
         renderIdeas(data);
+        lastAnalyzeAt = Date.now();
         const n = (data.opportunities || data.actionable || []).length;
-        setBanner(data.message || 'Análisis listo', n ? 'ok' : 'warn');
+        if (!silent) setBanner(data.message || 'Análisis listo', n ? 'ok' : 'warn');
         return data;
       } catch (err) {
-        setBanner(err.message || String(err), 'warn');
+        if (!silent) setBanner(err.message || String(err), 'warn');
         return null;
+      }
+    }
+
+    async function refreshLive(forceMarks) {
+      if (liveBusy || document.hidden) return;
+      liveBusy = true;
+      try {
+        const marks = forceMarks === false ? 'false' : 'true';
+        const res = await fetch(`/live?mode=${LIVE_MODE}&marks=${marks}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error live');
+        mergeLiveIntoDashboard(data);
+      } catch (err) {
+        setLiveStatus(false, 'sin señal');
+      } finally {
+        liveBusy = false;
       }
     }
 
     async function refreshAll() {
       setBusy(true);
       try {
-        const res = await fetch('/dashboard?mode=alpaca');
+        const res = await fetch(`/dashboard?mode=${LIVE_MODE}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'No se pudo cargar dashboard');
+        if (data.performance?.poll_sec) livePollSec = Number(data.performance.poll_sec);
         renderDashboard(data);
+        lastLiveAt = Date.now();
+        updateLiveAge();
         if (data.news) renderNewsPayload(data.news, {});
         await runAnalyze(true);
       } catch (err) {
         setBanner(err.message || String(err), 'warn');
+        setLiveStatus(false, 'error');
       } finally {
         setBusy(false);
       }
@@ -1197,7 +1420,7 @@
       setBusy(true);
       setBanner('Ejecutando autopilot… buscando solo operaciones con ventaja neta.', 'info');
       try {
-        const res = await fetch('/autopilot/run?top_n=15&mode=alpaca', { method: 'POST' });
+        const res = await fetch(`/autopilot/run?top_n=15&mode=${LIVE_MODE}`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error en autopilot');
         setBanner(data.message || 'Autopilot listo', (data.actions || []).some(a => a.ok) ? 'ok' : 'warn');
@@ -1211,17 +1434,91 @@
       }
     }
 
+    function stopLive() {
+      if (liveSource) {
+        try { liveSource.close(); } catch {}
+        liveSource = null;
+      }
+      if (livePollTimer) {
+        clearInterval(livePollTimer);
+        livePollTimer = null;
+      }
+    }
+
+    function startPollingFallback() {
+      stopLive();
+      useSSE = false;
+      setLiveStatus(true, 'polling…');
+      refreshLive(true);
+      livePollTimer = setInterval(() => refreshLive(true), livePollSec * 1000);
+    }
+
+    function startSSE() {
+      stopLive();
+      if (!window.EventSource) {
+        startPollingFallback();
+        return;
+      }
+      try {
+        liveSource = new EventSource(`/live/stream?mode=${LIVE_MODE}&interval=${livePollSec}`);
+        liveSource.addEventListener('tick', (ev) => {
+          try {
+            const data = JSON.parse(ev.data);
+            mergeLiveIntoDashboard(data);
+          } catch {}
+        });
+        liveSource.addEventListener('error', () => {
+          // El browser reintenta solo; si queda cerrado, caemos a polling
+          if (liveSource && liveSource.readyState === EventSource.CLOSED) {
+            startPollingFallback();
+          } else {
+            setLiveStatus(false, 'reconectando…');
+          }
+        });
+        liveSource.onopen = () => setLiveStatus(true, 'en vivo · 0s');
+      } catch {
+        startPollingFallback();
+      }
+    }
+
+    function startLiveEngine() {
+      startSSE();
+      if (analyzeTimer) clearInterval(analyzeTimer);
+      analyzeTimer = setInterval(() => {
+        if (document.hidden) return;
+        runAnalyze(true);
+      }, analyzeSec * 1000);
+      if (ageTimer) clearInterval(ageTimer);
+      ageTimer = setInterval(updateLiveAge, 1000);
+    }
+
     document.getElementById('botState').addEventListener('click', async () => {
       if (!lastDashboard) return;
       const halted = lastDashboard.headline?.halted;
-      const endpoint = halted ? '/portfolio/resume?mode=alpaca' : '/portfolio/halt?reason=manual_ui&mode=alpaca';
+      const endpoint = halted
+        ? `/portfolio/resume?mode=${LIVE_MODE}`
+        : `/portfolio/halt?reason=manual_ui&mode=${LIVE_MODE}`;
       await fetch(endpoint, { method: 'POST' });
       await refreshAll();
     });
 
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        refreshLive(true);
+        if (Date.now() - lastAnalyzeAt > analyzeSec) runAnalyze(true);
+        if (!liveSource && !livePollTimer) startLiveEngine();
+      }
+    });
+
+    window.addEventListener('online', () => {
+      setLiveStatus(true, 'reconectado');
+      refreshLive(true);
+      if (!liveSource && !livePollTimer) startLiveEngine();
+    });
+    window.addEventListener('offline', () => setLiveStatus(false, 'sin red'));
+
     wireCollapse();
-    refreshAll();
-    setInterval(() => { refreshAll(); }, 5 * 60 * 1000);
+    refreshAll().finally(() => startLiveEngine());
   </script>
 </body>
 </html>

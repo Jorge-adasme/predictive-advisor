@@ -78,9 +78,12 @@ uvicorn advisor.api.app:app --reload --port 8000
 
 Dashboard web (`/`): responsive para **iPhone** (dock inferior + safe-area) y **escritorio** (2 columnas + acciones en el header).
 
+**Tiempo real:** el panel usa SSE (`/live/stream`) o polling (`/live`) cada ~8s para equity/posiciones, y re-analiza cuant+IA cada ~2 min.
+
 Endpoints:
 
 - `GET /health`
+- `GET /live` · `GET /live/stream` (SSE tiempo casi real)
 - `GET /system/status`
 - `GET /performance`
 - `GET /audit`

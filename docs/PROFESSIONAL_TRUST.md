@@ -55,6 +55,16 @@ GET /dashboard   # incluye performance + system + audit
 - Cumplimiento CMF formal si se ofrece a terceros en Chile
 - Live BTG sin API/partner oficial
 
+## Tiempo real
+
+```
+/live          → tick liviano (equity, posiciones, PnL)
+/live/stream   → Server-Sent Events cada ADVISOR_LIVE_POLL_SEC (default 8s)
+/analyze       → re-análisis cuant+IA cada ADVISOR_LIVE_ANALYZE_SEC (default 120s)
+```
+
+La UI muestra badge **en vivo**, pausa el feed si la pestaña está oculta y reconecta al volver.
+
 ## Principio
 
 > Transparencia > magia. Si el sistema no puede explicar *por qué* compra o se detiene, no es confiable.

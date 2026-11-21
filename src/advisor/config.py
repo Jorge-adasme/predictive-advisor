@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     ai_base_url: str = "https://api.openai.com/v1"
     ai_gate_autopilot: bool = True  # si True, autopilot solo compra con approve_trade
 
+    # Tiempo real (UI)
+    live_enabled: bool = True
+    live_poll_sec: int = Field(default=8, ge=3, le=60)  # precios / portafolio
+    live_analyze_sec: int = Field(default=120, ge=30, le=900)  # re-análisis cuant+IA
+
     @property
     def round_trip_cost_pct(self) -> float:
         """Costo estimado ida y vuelta: comisión(+IVA) por lado + slippage."""
